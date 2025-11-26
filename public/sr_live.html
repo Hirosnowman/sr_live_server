@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>SR コメント・ギフト 3カラム（最新上）</title>
+<title>SR コメント・ギフト 3カラム</title>
 <style>
 body { font-family: sans-serif; margin: 10px; background:#f0f0f0; }
 .container { display: flex; gap: 10px; }
@@ -47,7 +47,7 @@ body { font-family: sans-serif; margin: 10px; background:#f0f0f0; }
 </div>
 
 <script>
-const roomId = 490133; // ←対象のルームID
+const roomId = 490133;
 let broadcastKey = null;
 let socket = null;
 
@@ -67,7 +67,10 @@ async function fetchBroadcastKey() {
 // WebSocket 接続
 function connectWebSocket(key) {
     socket = new WebSocket("wss://online.showroom-live.com");
-    socket.onopen = () => { socket.send("SUB\t" + key); console.log("WebSocket connected:", key); };
+    socket.onopen = () => {
+        socket.send("SUB\t" + key);
+        console.log("WebSocket connected:", key);
+    };
     socket.onmessage = (msg) => {
         const data = msg.data;
         if (data.startsWith("ACK") || data.startsWith("ERR")) return;
@@ -80,7 +83,7 @@ function connectWebSocket(key) {
     socket.onclose = () => { console.log("WebSocket closed, waiting to reconnect..."); };
 }
 
-// コメント表示（最新上）
+// コメント表示（最新を上から下へ、自動スクロール）
 function showComment(c) {
     const div = document.createElement("div");
     const img = document.createElement("img");
@@ -91,25 +94,21 @@ function showComment(c) {
     div.appendChild(p);
 
     const commentBox = document.getElementById("comment");
-    commentBox.prepend(div);  // ← prependで最新上
+    commentBox.insertBefore(div, commentBox.firstChild);
 }
 
 // ギフト表示（gtで無料/有料振り分け、最新上）
 function showGift(g) {
-    const gt = parseInt(g.gt);
-    let containerId;
-    if(gt === 1) containerId = "paidGift";  // 中央
-    else if(gt === 2) containerId = "freeGift";  // 右
-    else return;
-
+    const containerId = g.gt === 1 ? "freeGift" : "paidGift";
     const div = document.createElement("div");
     div.className = "giftItem";
 
     const img1 = document.createElement("img");
     img1.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${g.av}.png`;
 
+    const giftId = g.g; // ギフトID
     const img2 = document.createElement("img");
-    img2.src = `https://static.showroom-live.com/image/gift/${g.g}_s.png?v=7`;
+    img2.src = `https://static.showroom-live.com/image/gift/${giftId}_s.png?v=7`;
     img2.width = 30;
 
     const p = document.createElement("p");
@@ -120,7 +119,7 @@ function showGift(g) {
     div.appendChild(p);
 
     const box = document.getElementById(containerId);
-    box.prepend(div);  // ← prependで最新上
+    box.insertBefore(div, box.firstChild);
 }
 
 // 自動再取得＋WebSocketループ
