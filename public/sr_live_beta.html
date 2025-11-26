@@ -2,136 +2,237 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>SR コメント・ギフト 3カラム + ヘッダー情報</title>
+<title>SR コメント・ギフト 3カラム + 設定パネル</title>
 <style>
 body { font-family: sans-serif; margin: 0; background:#f0f0f0; }
-header { position: sticky; top: 0; background: #fff; padding: 5px 10px; border-bottom: 1px solid #ccc; z-index: 10; display:flex; align-items:center; gap:20px; }
-.container { display: flex; gap: 10px; padding: 10px; }
-.column { flex:1; border:1px solid #ccc; background:#fff; padding:5px; max-height:600px; overflow-y:auto; }
-#comment div, .giftItem { display:flex; align-items:center; margin-bottom:5px; }
-#comment img, .giftItem img { width:40px; height:40px; margin-right:5px; }
-.giftItem { background:#f9f9f9; padding:2px 5px; border-radius:5px; box-shadow:1px 1px 3px #aaa; }
-.column h2 { text-align:center; margin:5px 0; font-size:1.2em; }
+header { position: sticky; top:0; background:#fff; padding:5px; border-bottom:1px solid #ccc; z-index:100; }
+header input, header button { padding: 5px; font-size: 1em; margin-right:5px; }
+header h4 { margin:5px 0; }
+.container { display: flex; gap: 10px; margin-top:5px; padding: 5px; }
+
+/* 各カラムボックス */
+.column {
+    flex: 1;
+    border: 1px solid #ccc;
+    background: #fff;
+    max-height: 600px;
+    overflow-y: auto;
+    padding:5px;
+    position: relative;
+    resize: both;  /* リサイズ可能 */
+}
+.column.dragging { opacity:0.7; cursor:move; }
+
+/* コメント */
+#comment div { display: flex; align-items: center; margin-bottom: 5px; }
+#comment img { width: 40px; height: 40px; margin-right: 5px; }
+
+/* ギフト */
+.giftItem { display: flex; align-items: center; background: #f9f9f9; padding: 2px 5px; border-radius: 5px; margin-bottom: 5px; box-shadow: 1px 1px 3px #aaa; }
+.giftItem img { width: 40px; height: 40px; margin-right: 5px; }
+
+/* カラムヘッダー */
+.column h2 { text-align: center; margin: 5px 0; font-size: 1.2em; }
 </style>
 </head>
 <body>
 
 <header>
-    <span id="status">Status: 待機中</span>
-    <span id="hb">HB: 10s</span>
-    <span id="keyPoll">KeyPoll: 5s</span>
-    <span id="roomName">Room: -</span>
-    <span id="startedAt">開始: -</span>
-    <span id="elapsedTime">経過: -</span>
-    <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
-    <button id="switchRoom">切替</button>
+  <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
+  <button id="switchRoom">表示切替</button>
+  <span id="statusSpan">Status: 待機中</span>
+  <span id="hbSpan">HB: 10s</span>
+  <span id="kpSpan">KeyPoll: 5s</span>
+  <span id="roomNameSpan">Room: -</span>
+  <span id="startedSpan">開始: -</span>
+  <span id="elapsedSpan">経過: -</span>
+  
+  <div style="margin-top:5px;">
+    <h4>表示設定</h4>
+    <div>
+      <strong>コメント:</strong> 文字サイズ <input type="number" id="commentFontSize" value="14" min="10" max="30"> px
+      色 <input type="color" id="commentColor" value="#000000">
+    </div>
+    <div>
+      <strong>有料ギフト:</strong> 文字サイズ <input type="number" id="paidFontSize" value="14" min="10" max="30"> px
+      色 <input type="color" id="paidColor" value="#000000">
+    </div>
+    <div>
+      <strong>無料ギフト:</strong> 文字サイズ <input type="number" id="freeFontSize" value="14" min="10" max="30"> px
+      色 <input type="color" id="freeColor" value="#000000">
+    </div>
+    <button id="applyDisplaySettings">適用</button>
+  </div>
 </header>
 
 <div class="container">
-    <div class="column">
+    <div class="column" id="commentBox">
         <h2>コメント</h2>
         <div id="comment"></div>
     </div>
-    <div class="column">
+    <div class="column" id="paidBox">
         <h2>有料ギフト</h2>
         <div id="paidGift"></div>
     </div>
-    <div class="column">
+    <div class="column" id="freeBox">
         <h2>無料ギフト</h2>
         <div id="freeGift"></div>
     </div>
 </div>
 
 <script>
-let broadcastKey = null;
-let socket = null;
-let startedAtSec = null; // 秒単位
-let roomName = "-";
+// ---------- ユーザー設定 ----------
+const roomDefault = 490133;
+let commentSettings = {size:14,color:"#000000"};
+let paidSettings = {size:14,color:"#000000"};
+let freeSettings = {size:14,color:"#000000"};
 
-// コメント表示
-function showComment(c){
-    const div=document.createElement("div");
-    const img=document.createElement("img");
-    img.src=`https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
-    const p=document.createElement("p");
-    p.textContent=`${c.ac}：${c.cm}`;
-    div.appendChild(img); div.appendChild(p);
-    document.getElementById("comment").prepend(div);
+// ---------- ドラッグ機能 ----------
+function makeDraggable(el){
+    let offsetX=0, offsetY=0, isDown=false;
+    el.querySelector("h2").style.cursor = "move";
+    el.addEventListener("mousedown", e=>{
+        isDown=true;
+        offsetX = el.offsetLeft - e.clientX;
+        offsetY = el.offsetTop - e.clientY;
+        el.classList.add("dragging");
+    });
+    document.addEventListener("mouseup", ()=>{isDown=false; el.classList.remove("dragging");});
+    document.addEventListener("mousemove", e=>{
+        if(isDown){
+            el.style.left=(e.clientX + offsetX)+"px";
+            el.style.top=(e.clientY + offsetY)+"px";
+            el.style.position="absolute";
+        }
+    });
 }
+["commentBox","paidBox","freeBox"].forEach(id => makeDraggable(document.getElementById(id)));
 
-// ギフト表示
+// ---------- 設定パネル ----------
+document.getElementById("applyDisplaySettings").onclick = () => {
+    commentSettings.size = parseInt(document.getElementById("commentFontSize").value);
+    commentSettings.color = document.getElementById("commentColor").value;
+    paidSettings.size = parseInt(document.getElementById("paidFontSize").value);
+    paidSettings.color = document.getElementById("paidColor").value;
+    freeSettings.size = parseInt(document.getElementById("freeFontSize").value);
+    freeSettings.color = document.getElementById("freeColor").value;
+
+    document.getElementById("comment").style.fontSize = commentSettings.size+"px";
+    document.getElementById("comment").style.color = commentSettings.color;
+    document.getElementById("paidGift").style.fontSize = paidSettings.size+"px";
+    document.getElementById("paidGift").style.color = paidSettings.color;
+    document.getElementById("freeGift").style.fontSize = freeSettings.size+"px";
+    document.getElementById("freeGift").style.color = freeSettings.color;
+};
+
+// ---------- ギフト累積データ ----------
+let giftData = {}; // {userId_giftId:{n, lastObj}}
+
 function showGift(g){
-    const gt = parseInt(g.gt);
-    let containerId = gt===2 ? "freeGift" : "paidGift";
-    const div=document.createElement("div");
-    div.className="giftItem";
+    const key = g.u + "_" + g.g; // userID + giftID
+    if(!giftData[key]) giftData[key] = {n:g.n,last:g};
+    else {giftData[key].n += g.n; giftData[key].last = g;}
+    const containerId = (parseInt(g.gt)===2) ? "freeGift":"paidGift"; // 1:有料 2:無料
+    const box = document.getElementById(containerId);
+
+    let div = document.getElementById(key);
+    if(!div){
+        div=document.createElement("div");
+        div.id=key;
+        div.className="giftItem";
+        box.prepend(div);
+    }
+    div.innerHTML="";
     const img1=document.createElement("img");
     img1.src=`https://image.showroom-cdn.com/showroom-prod/image/avatar/${g.av}.png`;
     const img2=document.createElement("img");
     img2.src=`https://static.showroom-live.com/image/gift/${g.g}_s.png?v=7`;
     img2.width=30;
     const p=document.createElement("p");
-    p.textContent=`${g.ac}：${g.n}個`;
+    p.textContent=`${g.ac}: ${giftData[key].n}個`;
+
     div.appendChild(img1); div.appendChild(img2); div.appendChild(p);
-    document.getElementById(containerId).prepend(div);
+
+    // 文字スタイル
+    div.style.fontSize = (parseInt(g.gt)===2 ? freeSettings.size: paidSettings.size)+"px";
+    div.style.color = (parseInt(g.gt)===2 ? freeSettings.color: paidSettings.color);
 }
 
-// 経過時間更新
-function updateElapsed(){
-    if(startedAtSec){
-        const diffSec=Math.floor(Date.now()/1000 - startedAtSec);
-        const h=Math.floor(diffSec/3600);
-        const m=Math.floor((diffSec%3600)/60);
-        document.getElementById("elapsedTime").textContent=`経過: ${h}時間${m}分`;
-    }
+// ---------- コメント表示 ----------
+function showComment(c){
+    const div=document.createElement("div");
+    const img=document.createElement("img");
+    img.src=`https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
+    const p=document.createElement("p");
+    p.textContent=`${c.ac}: ${c.cm}`;
+    div.appendChild(img); div.appendChild(p);
+    div.style.fontSize = commentSettings.size+"px";
+    div.style.color = commentSettings.color;
+    document.getElementById("comment").prepend(div);
 }
-setInterval(updateElapsed, 60000); // 1分ごと更新
 
-// WebSocket 接続
-async function connectRoom(roomId){
+// ---------- WebSocket接続 ----------
+let socket=null;
+let broadcastKey=null;
+let roomName="-";
+let startedAt=null;
+let hbInterval=10000;
+let keyPollInterval=5000;
+let reconnectDelay=5000;
+
+async function fetchBroadcastKey(roomId){
     try{
-        document.getElementById("status").textContent="Status: 接続中";
-        const res=await fetch(`/get_broadcast_key?room_id=${roomId}`);
-        const json=await res.json();
-        if(!json.broadcast_key){ alert("broadcast_key取得失敗"); return; }
-
-        broadcastKey=json.broadcast_key;
-        startedAtSec=json.started_at; // APIで取得する配信開始 unixtime 秒
-        roomName=json.main_name || "-";
-
-        document.getElementById("roomName").textContent=`Room: ${roomName}`;
-        document.getElementById("startedAt").textContent=`開始: ${new Date(startedAtSec*1000).toLocaleString()}`;
-
-        if(socket) socket.close();
-        socket=new WebSocket("wss://online.showroom-live.com");
-        socket.onopen=()=>socket.send("SUB\t"+broadcastKey);
-        socket.onmessage=(msg)=>{
-            const data=msg.data;
-            if(data.startsWith("ACK")||data.startsWith("ERR")) return;
-            const obj=JSON.parse(data.replace(`MSG\t${broadcastKey}`,""));
-            if(obj.cm) showComment(obj);
-            else if(obj.g) showGift(obj);
-        };
-
-        // UIリセット
-        document.getElementById("comment").innerHTML="";
-        document.getElementById("paidGift").innerHTML="";
-        document.getElementById("freeGift").innerHTML="";
-
-    } catch(e){
-        console.error(e);
-        document.getElementById("status").textContent="Status: エラー";
-    }
+        const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
+        const json = await res.json();
+        if(json.broadcast_key){
+            broadcastKey=json.broadcast_key;
+            return broadcastKey;
+        }
+    }catch(e){console.error(e);}
+    return null;
 }
 
-// ルーム切替ボタン
+async function connectRoom(roomId){
+    document.getElementById("statusSpan").textContent="Status: 接続中";
+    broadcastKey=await fetchBroadcastKey(roomId);
+    if(!broadcastKey){document.getElementById("statusSpan").textContent="Status: 取得失敗"; return;}
+
+    if(socket) socket.close();
+
+    socket=new WebSocket("wss://online.showroom-live.com");
+    socket.onopen=()=>socket.send("SUB\t"+broadcastKey);
+    socket.onmessage=(msg)=>{
+        const data=msg.data;
+        if(data.startsWith("ACK") || data.startsWith("ERR")) return;
+        const obj=JSON.parse(data.replace(`MSG\t${broadcastKey}`,""));
+        if(obj.cm) showComment(obj);
+        if(obj.g) showGift(obj);
+        if(obj.main_name) {roomName=obj.main_name; document.getElementById("roomNameSpan").textContent="Room: "+roomName;}
+        if(obj.started_at && !startedAt){startedAt=new Date(obj.started_at*1000); document.getElementById("startedSpan").textContent="開始: "+startedAt.toLocaleString();}
+    };
+    socket.onclose=()=>{document.getElementById("statusSpan").textContent="Status: 切断";}
+}
+
+// ---------- 経過時間 ----------
+function updateElapsed(){
+    if(startedAt){
+        const now=new Date();
+        let diff=Math.floor((now-startedAt)/1000);
+        const h=Math.floor(diff/3600);
+        diff%=3600;
+        const m=Math.floor(diff/60);
+        document.getElementById("elapsedSpan").textContent=`経過: ${h}時間${m}分`;
+    }
+}
+setInterval(updateElapsed,1000);
+
+// ---------- 初期化 ----------
 document.getElementById("switchRoom").onclick=()=>{
-    const newRoomId=document.getElementById("roomInput").value.trim();
-    if(newRoomId) connectRoom(newRoomId);
+    const id=document.getElementById("roomInput").value.trim();
+    if(id) connectRoom(id);
 };
 
-// 初期ルーム
-connectRoom(490133);
+connectRoom(roomDefault);
 </script>
 
 </body>
