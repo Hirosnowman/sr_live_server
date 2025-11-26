@@ -72,9 +72,15 @@ function showComment(c) {
     commentBox.prepend(div); // 最新を上に表示
 }
 
-// ギフト表示
+
+// ギフト表示（gtで無料/有料振り分け、最新上）
 function showGift(g) {
-    const containerId = g.gt === 1 ? "freeGift" : "paidGift";
+    const gt = parseInt(g.gt);
+    let containerId;
+    if(gt === 1) containerId = "paidGift";  // 中央
+    else if(gt === 2) containerId = "freeGift";  // 右
+    else return;
+
     const div = document.createElement("div");
     div.className = "giftItem";
 
@@ -93,7 +99,7 @@ function showGift(g) {
     div.appendChild(p);
 
     const box = document.getElementById(containerId);
-    box.prepend(div); // 最新を上に表示
+    box.prepend(div);  // ← prependで最新上
 }
 
 // WebSocket 接続
