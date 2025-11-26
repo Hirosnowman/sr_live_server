@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>SR コメント・ギフト 3カラム + ルーム切替（ベータ強化版）</title>
+<style>
+body { font-family: sans-serif; margin: 10px; background:#f0f0f0; }
+header { margin-bottom: 10px; }
+input { padding: 5px; font-size: 1em; width: 120px; }
+button { padding: 5px 10px; font-size: 1em; }
+
+.container { display: flex; gap: 10px; }
+
+/* 各カラム */
+.column {
+    flex: 1;
+    border: 1px solid #ccc;
+    background: #fff;
+    padding: 5px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* コメント */
+#comment div { display: flex; align-items: center; margin-bottom: 5px; }
+#comment img { width: 40px; height: 40px; margin-right: 5px; }
+
+/* ギフト */
+.giftItem {
+    display: flex; align-items: center;
+    background: #f9f9f9;
+    padding: 2px 5px; border-radius: 5px;
+    margin-bottom: 5px;
+    box-shadow: 1px 1px 3px #aaa;
+}
+.giftItem img { width: 40px; height: 40px; margin-right: 5px; }
+
+/* カラムヘッダー */
+.column h2 { text-align: center; margin: 5px 0; font-size: 1.2em; }
+
+/* ステータス表示 */
+#status {
+    font-weight: bold;
+    padding: 4px 10px;
+    border-radius: 5px;
+    margin-left: 10px;
+}
+.status-connected { background:#2ecc71; color:#fff; }
+.status-disconnected { background:#e74c3c; color:#fff; }
+.status-reconnecting { background:#f39c12; color:#fff; }
+.status-wait { background:#7f8c8d; color:#fff; }
+</style>
+</head>
+<body>
+
+<header>
+    <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
+    <button id="switchRoom">表示切替</button>
+    <span id="status" class="status-wait">待機中</span>
+</header>
+
+<div class="container">
+    <div class="column">
+        <h2>コメント</h2>
+        <div id="comment"></div>
+    </div>
+    <div class="column">
+        <h2>有料ギフト</h2>
+        <div id="paidGift"></div>
+    </div>
+    <div class="column">
+        <h2>無料ギフト</h2>
+        <div id="freeGift"></div>
+    </div>
+</div>
+
+<script>
+let broadcastKey = null;
+let socket = null;
+let roomId = null;
+
+let lastMessageTime = 0;
+let reconnectDelay = 1000; // 1秒〜最大8秒
+let keyCheckTimer = null;
+let heartbeatTimer = null;
+
+function setStatus(state) {
+    const el = document.getElementById("status");
+    el.className = "";
+    if(state === "connected"){ el.classList.add("status-connected"); el.textContent="接続中"; }
+    if(state === "disconnected"){ el.classList.add("status-disconnected"); el.textContent="切断"; }
+    if(state === "reconnecting"){ el.classList.add("status-reconnecting"); el.textContent="再接続中…"; }
+    if(state === "wait"){ el.classList.add("status-wait"); el.textContent="待機中"; }
+}
+
+// コメント表示
+function showComment(c) {
+    const div = document.createElement("div");
+    div.innerHTML = `
+        <img src="https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png">
+        <p>${c.ac}：${c.cm}</p>
+    `;
+    document.getElementById("comment").prepend(div);
+}
+
+// ギフト表示
+function showGift(g) {
+    const gt = parseInt(g.gt);
+    if(gt !== 1 && gt !== 2) return;
+
+    const box = document.getElementById(gt === 1 ? "paidGift" : "freeGift");
+
+    const div = document.createElement("div");
+    div.className = "giftItem";
+    div.innerHTML = `
+        <img src="https://image.showroom-cdn.com/showroom-prod/image/avatar/${g.av}.png">
+        <img src="https://static.showroom-live.com/image/gift/${g.g}_s.png?v=7">
+        <p>${g.ac}：${g.n}個</p>
+    `;
+    box.prepend(div);
+}
+
+// WebSocket 接続処理
+function connectSocket() {
+    if (!broadcastKey) return;
+
+    setStatus("reconnecting");
+
+    socket = new WebSocket("wss://online.showroom-live.com");
+
+    socket.onopen = () => {
+        socket.send("SUB\t" + broadcastKey);
+        setStatus("connected");
+        reconnectDelay = 1000; // リセット
+    };
+
+    socket.onclose = () => {
+        setStatus("disconnected");
+        retryReconnect();
+    };
+
+    socket.onerror = () => {
+        setStatus("disconnected");
+        retryReconnect();
+    };
+
+    socket.onmessage = (msg) => {
+        lastMessageTime = Date.now();
+        const raw = msg.data;
+        if(raw.startsWith("ACK") || raw.startsWith("ERR")) return;
+
+        const obj = JSON.parse(raw.replace(`MSG\t${broadcastKey}`, ""));
+
+        if(obj.cm) showComment(obj);
+        else if(obj.g) showGift(obj);
+    };
+}
+
+// 再接続（指数バックオフ）
+function retryReconnect() {
+    if (reconnectDelay > 8000) reconnectDelay = 8000;
+
+    setStatus("reconnecting");
+
+    setTimeout(() => {
+        connectSocket();
+        reconnectDelay *= 2;
+    }, reconnectDelay);
+}
+
+// 5秒ごとに broadcast_key 取得
+async function pollBroadcastKey() {
+    if (!roomId) return;
+
+    try {
+        const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
+        const json = await res.json();
+
+        if (!json.broadcast_key) {
+            // 配信終了
+            setStatus("wait");
+            broadcastKey = null;
+            if (socket) socket.close();
+            return;
+        }
+
+        if (json.broadcast_key !== broadcastKey) {
+            // キー変更 → 再接続
+            broadcastKey = json.broadcast_key;
+            if (socket) socket.close();
+            connectSocket();
+        }
+
+    } catch (e) {
+        console.warn("キー取得失敗", e);
+    }
+}
+
+// 10秒ハートビート監視
+function startHeartbeat() {
+    heartbeatTimer = setInterval(() => {
+        if (!socket || socket.readyState !== 1) return;
+        if (Date.now() - lastMessageTime > 10000) {
+            setStatus("disconnected");
+            socket.close();
+        }
+    }, 2000);
+}
+
+// ルーム接続
+async function connectRoom(newRoomId) {
+    roomId = newRoomId;
+
+    // UIリセット
+    document.getElementById("comment").innerHTML = "";
+    document.getElementById("paidGift").innerHTML = "";
+    document.getElementById("freeGift").innerHTML = "";
+
+    setStatus("reconnecting");
+
+    // broadcast_key 初回取得
+    const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
+    const json = await res.json();
+    if (!json.broadcast_key) {
+        setStatus("wait");
+        return;
+    }
+    broadcastKey = json.broadcast_key;
+
+    // 接続開始
+    connectSocket();
+
+    // 起動済みなら clear
+    if (keyCheckTimer) clearInterval(keyCheckTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+    keyCheckTimer = setInterval(pollBroadcastKey, 5000);
+    startHeartbeat();
+}
+
+document.getElementById("switchRoom").onclick = () => {
+    const id = document.getElementById("roomInput").value.trim();
+    if (id) connectRoom(id);
+};
+
+// 初期
+connectRoom(490133);
+</script>
+
+</body>
+</html>
