@@ -1,13 +1,12 @@
-// 設定
-let commentSettings = {size:14, color:"#000"};
-let paidSettings = {size:14, color:"#000"};
-let freeSettings = {size:14, color:"#000"};
+// ----------------- コメント・ギフト表示処理 -----------------
+window.commentSettings = {size:14, color:"#000000"};
+window.paidSettings = {size:14, color:"#000000"};
+window.freeSettings = {size:14, color:"#000000"};
 
-const paidGiftMap = {};
-const freeGiftMap = {};
+window.paidGiftMap = {};
+window.freeGiftMap = {};
 
-// コメント表示
-function showComment(c) {
+window.showComment = function(c){
     const div = document.createElement("div");
     const img = document.createElement("img");
     img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
@@ -16,14 +15,13 @@ function showComment(c) {
     div.appendChild(img);
     div.appendChild(p);
     document.getElementById("comment").prepend(div);
-}
+};
 
-// ギフト表示
-function showGift(g) {
+window.showGift = function(g){
     const gt = parseInt(g.gt);
     let containerId, giftMap;
-    if(gt===2){ containerId="freeGift"; giftMap=freeGiftMap; }
-    else { containerId="paidGift"; giftMap=paidGiftMap; }
+    if(gt===2){ containerId="freeGift"; giftMap=window.freeGiftMap; }
+    else { containerId="paidGift"; giftMap=window.paidGiftMap; }
 
     const key = `${g.u}_${g.g}`;
     if(giftMap[key]){
@@ -45,5 +43,5 @@ function showGift(g) {
     div.appendChild(img1); div.appendChild(img2); div.appendChild(p);
     document.getElementById(containerId).prepend(div);
 
-    giftMap[key]={div:div, count:g.n, time:Date.now()};
-}
+    giftMap[key]={div:div,count:g.n,time:Date.now()};
+};

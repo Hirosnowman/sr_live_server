@@ -1,75 +1,70 @@
-let broadcastKey = null;
-let socket = null;
-let reconnectTimer = null;
-let startedAt = null;
+// ----------------- WebSocket接続処理 -----------------
+window.socket = null;
+window.broadcastKey = null;
+window.startedAt = null;
+window.reconnectTimeout = null;
 
-async function connectRoom(roomId) {
+function setStatus(status){
+    const span = document.getElementById("statusSpan");
+    span.className="";
+    if(status==="connecting"){ span.textContent="Status: 再接続中"; span.classList.add("connecting"); }
+    else if(status==="connected"){ span.textContent="Status: 接続中"; span.classList.add("connected"); }
+    else { span.textContent="Status: 切断"; span.classList.add("disconnected"); }
+}
+
+window.connectRoom = async function(roomId){
+    if(!roomId) return;
+    if(window.reconnectTimeout) clearTimeout(window.reconnectTimeout);
+
     try{
+        setStatus("connecting");
         const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
         const json = await res.json();
         if(!json.broadcast_key){ alert("broadcast_key取得失敗"); return; }
-        broadcastKey=json.broadcast_key;
+        window.broadcastKey = json.broadcast_key;
 
-        if(socket) socket.close();
-        updateStatus("接続中");
+        if(window.socket) window.socket.close();
 
-        socket = new WebSocket("wss://online.showroom-live.com");
-        socket.onopen = ()=>{
-            socket.send("SUB\t"+broadcastKey);
-            startHeartbeat(socket);
-            updateStatus("正常接続中");
+        window.socket = new WebSocket("wss://online.showroom-live.com");
+        window.socket.onopen = ()=>{
+            window.socket.send("SUB\t"+window.broadcastKey);
+            setStatus("connected");
+            if(window.startHeartbeat) window.startHeartbeat();
         };
-        socket.onmessage=(msg)=>{
+
+        window.socket.onmessage = (msg)=>{
             const data = msg.data;
             if(data.startsWith("ACK")||data.startsWith("ERR")) return;
-            const obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`,""));
-            if(obj.cm) showComment(obj);
-            else if(obj.g) showGift(obj);
-            if(!startedAt && obj.started_at) startedAt = obj.started_at*1000;
+            const obj = JSON.parse(data.replace(`MSG\t${window.broadcastKey}`,""));
+            if(obj.cm) window.showComment(obj);
+            else if(obj.g) window.showGift(obj);
+            if(!window.startedAt && obj.started_at) window.startedAt=obj.started_at*1000;
             if(obj.main_name) document.getElementById("roomNameSpan").textContent="Room: "+obj.main_name;
         };
-        socket.onclose = ()=>{
-            updateStatus("切断");
-            stopHeartbeat();
-            attemptReconnect(roomId);
+
+        window.socket.onclose = ()=>{
+            setStatus("disconnected");
+            if(window.hbInterval) clearInterval(window.hbInterval);
+            window.reconnectTimeout = setTimeout(()=>window.connectRoom(roomId),5000);
         };
+
+        // UIリセット
+        document.getElementById("comment").innerHTML="";
+        document.getElementById("paidGift").innerHTML="";
+        document.getElementById("freeGift").innerHTML="";
+        Object.keys(window.paidGiftMap).forEach(k=>delete window.paidGiftMap[k]);
+        Object.keys(window.freeGiftMap).forEach(k=>delete window.freeGiftMap[k]);
+
     }catch(e){
         console.error(e);
-        alert("broadcast_key取得中にエラー");
+        setStatus("disconnected");
+        window.reconnectTimeout = setTimeout(()=>window.connectRoom(roomId),5000);
     }
-}
-
-function updateStatus(text){
-    const span = document.getElementById("statusSpan");
-    span.textContent = "Status: " + text;
-    if(text==="正常接続中") span.style.color="green";
-    else if(text==="接続中") span.style.color="blue";
-    else span.style.color="red";
-}
-
-function attemptReconnect(roomId){
-    if(reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(()=> connectRoom(roomId), 5000);
-}
-
-// ルーム切替
-document.getElementById("switchRoom").onclick = ()=>{
-    const newRoomId=document.getElementById("roomInput").value.trim();
-    if(newRoomId) connectRoom(newRoomId);
 };
 
-// 経過時間更新
-setInterval(()=>{
-    if(startedAt){
-        const now=Date.now();
-        const diff=Math.floor((now-startedAt)/1000);
-        const h=Math.floor(diff/3600);
-        const m=Math.floor((diff%3600)/60);
-        const s=diff%60;
-        document.getElementById("startedSpan").textContent="開始: "+new Date(startedAt).toLocaleString();
-        document.getElementById("elapsedSpan").textContent=`経過: ${h}時間 ${m}分 ${s}秒`;
-    }
-},1000);
-
 // 初期ルーム
-connectRoom(490133);
+document.getElementById("switchRoom").onclick = ()=>{
+    const newRoomId=document.getElementById("roomInput").value.trim();
+    if(newRoomId) window.connectRoom(newRoomId);
+};
+window.connectRoom(490133);
