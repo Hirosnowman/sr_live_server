@@ -32,8 +32,11 @@
     </div>
 </div>
 
-<script src="js/websocket.js"></script>
-<script src="js/heartbeat.js"></script>
+<!-- 3分割 JS をモジュールとして読み込む -->
+<script type="module" src="js/commentGift.js"></script>
+<script type="module" src="js/heartbeat.js"></script>
+<script type="module" src="js/websocket.js"></script>
+
 <script type="module">
 import { connectRoom } from "./js/ws.js";
 
