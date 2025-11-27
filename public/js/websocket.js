@@ -1,6 +1,5 @@
-// ----------------- WebSocket接続処理 -----------------
-window.socket = null;
 window.broadcastKey = null;
+window.socket = null;
 window.startedAt = null;
 window.reconnectTimeout = null;
 
@@ -12,7 +11,7 @@ function setStatus(status){
     else { span.textContent="Status: 切断"; span.classList.add("disconnected"); }
 }
 
-window.connectRoom = async function(roomId){
+async function connectRoom(roomId){
     if(!roomId) return;
     if(window.reconnectTimeout) clearTimeout(window.reconnectTimeout);
 
@@ -29,23 +28,25 @@ window.connectRoom = async function(roomId){
         window.socket.onopen = ()=>{
             window.socket.send("SUB\t"+window.broadcastKey);
             setStatus("connected");
-            if(window.startHeartbeat) window.startHeartbeat();
+
+            // ハートビート開始
+            startHeartbeat();
         };
 
         window.socket.onmessage = (msg)=>{
             const data = msg.data;
             if(data.startsWith("ACK")||data.startsWith("ERR")) return;
             const obj = JSON.parse(data.replace(`MSG\t${window.broadcastKey}`,""));
-            if(obj.cm) window.showComment(obj);
-            else if(obj.g) window.showGift(obj);
-            if(!window.startedAt && obj.started_at) window.startedAt=obj.started_at*1000;
+            if(obj.cm) showComment(obj);
+            else if(obj.g) showGift(obj);
+            if(!window.startedAt && obj.started_at) window.startedAt = obj.started_at*1000;
             if(obj.main_name) document.getElementById("roomNameSpan").textContent="Room: "+obj.main_name;
         };
 
         window.socket.onclose = ()=>{
             setStatus("disconnected");
-            if(window.hbInterval) clearInterval(window.hbInterval);
-            window.reconnectTimeout = setTimeout(()=>window.connectRoom(roomId),5000);
+            stopHeartbeat();
+            window.reconnectTimeout = setTimeout(()=>connectRoom(roomId),5000);
         };
 
         // UIリセット
@@ -58,13 +59,19 @@ window.connectRoom = async function(roomId){
     }catch(e){
         console.error(e);
         setStatus("disconnected");
-        window.reconnectTimeout = setTimeout(()=>window.connectRoom(roomId),5000);
+        window.reconnectTimeout = setTimeout(()=>connectRoom(roomId),5000);
     }
-};
+}
 
-// 初期ルーム
-document.getElementById("switchRoom").onclick = ()=>{
-    const newRoomId=document.getElementById("roomInput").value.trim();
-    if(newRoomId) window.connectRoom(newRoomId);
-};
-window.connectRoom(490133);
+// 経過時間更新
+setInterval(()=>{
+    if(window.startedAt){
+        const now=Date.now();
+        const diff=Math.floor((now-window.startedAt)/1000);
+        const h=Math.floor(diff/3600);
+        const m=Math.floor((diff%3600)/60);
+        const s=diff%60;
+        document.getElementById("startedSpan").textContent="開始: "+new Date(window.startedAt).toLocaleString();
+        document.getElementById("elapsedSpan").textContent=`経過: ${h}時間 ${m}分 ${s}秒`;
+    }
+},1000);

@@ -1,11 +1,12 @@
-// ----------------- ハートビート -----------------
 window.hbInterval = null;
 
-window.startHeartbeat = function(){
-    if(window.hbInterval) clearInterval(window.hbInterval);
+function startHeartbeat(){
+    stopHeartbeat();
     window.hbInterval = setInterval(()=>{
-        if(window.socket && window.socket.readyState===WebSocket.OPEN){
-            window.socket.send("PING");
-        }
-    }, 10000); // 10秒
-};
+        if(window.socket && window.socket.readyState===WebSocket.OPEN) window.socket.send("PING");
+    },10000);
+}
+
+function stopHeartbeat(){
+    if(window.hbInterval) clearInterval(window.hbInterval);
+}

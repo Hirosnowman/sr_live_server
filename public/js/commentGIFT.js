@@ -1,4 +1,3 @@
-// ----------------- コメント・ギフト表示処理 -----------------
 window.commentSettings = {size:14, color:"#000000"};
 window.paidSettings = {size:14, color:"#000000"};
 window.freeSettings = {size:14, color:"#000000"};
@@ -6,7 +5,8 @@ window.freeSettings = {size:14, color:"#000000"};
 window.paidGiftMap = {};
 window.freeGiftMap = {};
 
-window.showComment = function(c){
+// コメント表示
+function showComment(c){
     const div = document.createElement("div");
     const img = document.createElement("img");
     img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
@@ -15,9 +15,10 @@ window.showComment = function(c){
     div.appendChild(img);
     div.appendChild(p);
     document.getElementById("comment").prepend(div);
-};
+}
 
-window.showGift = function(g){
+// ギフト表示（累積）
+function showGift(g){
     const gt = parseInt(g.gt);
     let containerId, giftMap;
     if(gt===2){ containerId="freeGift"; giftMap=window.freeGiftMap; }
@@ -44,4 +45,4 @@ window.showGift = function(g){
     document.getElementById(containerId).prepend(div);
 
     giftMap[key]={div:div,count:g.n,time:Date.now()};
-};
+}

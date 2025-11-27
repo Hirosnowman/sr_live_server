@@ -2,39 +2,54 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>SR コメント・ギフト</title>
+<title>SR コメント・ギフト 3分割JS版</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <header>
   <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
-  <button id="switchRoom">表示切替</button>
-  <span id="statusSpan">Status: 待機中</span>
+  <button id="switchRoom">接続</button>
+  <span id="statusSpan" class="disconnected">Status: 待機中</span>
   <span id="hbSpan">HB: 10s</span>
   <span id="roomNameSpan">Room: -</span>
   <span id="startedSpan">開始: -</span>
   <span id="elapsedSpan">経過: -</span>
+
+  <button id="toggleSettings" style="position:absolute; right:10px; top:5px;">設定</button>
+  <div id="settingsPanel"></div>
 </header>
 
 <div class="container">
-    <div class="column">
-        <h2>コメント</h2>
-        <div id="comment"></div>
-    </div>
-    <div class="column">
-        <h2>有料ギフト</h2>
-        <div id="paidGift"></div>
-    </div>
-    <div class="column">
-        <h2>無料ギフト</h2>
-        <div id="freeGift"></div>
-    </div>
+  <div class="column">
+      <h2>コメント</h2>
+      <div id="comment"></div>
+  </div>
+  <div class="column">
+      <h2>有料ギフト</h2>
+      <div id="paidGift"></div>
+  </div>
+  <div class="column">
+      <h2>無料ギフト</h2>
+      <div id="freeGift"></div>
+  </div>
 </div>
 
 <!-- JS -->
 <script src="js/commentGift.js"></script>
 <script src="js/websocket.js"></script>
 <script src="js/heartbeat.js"></script>
+<script>
+window.addEventListener("DOMContentLoaded", ()=>{
+    // 初期ルーム接続
+    connectRoom(490133);
+
+    // ルーム切替
+    document.getElementById("switchRoom").onclick = ()=>{
+        const newRoomId = document.getElementById("roomInput").value.trim();
+        if(newRoomId) connectRoom(newRoomId);
+    };
+});
+</script>
 </body>
 </html>
