@@ -1,17 +1,21 @@
-let broadcastKey = null;
 let socket = null;
+let broadcastKey = null;
 let reconnectTimeout = null;
 
-export async function connectRoom(roomId) {
+async function connectRoom(roomId) {
     if (!roomId) return;
     if (reconnectTimeout) clearTimeout(reconnectTimeout);
 
     setStatus("connecting");
+    setStatusMsg("最新キー取得中...", "blue");
 
     try {
         const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
         const json = await res.json();
-        if (!json.broadcast_key) { alert("broadcast_key取得失敗"); return; }
+        if (!json.broadcast_key) {
+            setStatusMsg("broadcast_key取得失敗", "red");
+            return;
+        }
         broadcastKey = json.broadcast_key;
 
         if (socket) socket.close();
@@ -21,47 +25,48 @@ export async function connectRoom(roomId) {
         socket.onopen = () => {
             socket.send("SUB\t" + broadcastKey);
             setStatus("connected");
-            startHeartbeat(socket); // heartbeat.js 側関数
+            setStatusMsg("WS接続成功", "green");
+
+            startHeartbeat(socket);
         };
 
         socket.onmessage = (msg) => {
-            const data = msg.data;
-            if (data.startsWith("ACK") || data.startsWith("ERR")) return;
-            let obj = null;
-            try {
-                obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`, ""));
-            } catch(e) { console.error("JSON parse error:", data); return; }
+            handleWSMessage(msg);
+        };
 
-            if (obj.cm || obj.g) handleMessage(obj); // commentGift.js 側関数
-            if (obj.main_name) document.getElementById("roomNameSpan").textContent = "Room: " + obj.main_name;
+        socket.onerror = (e) => {
+            console.error("WSエラー", e);
+            setStatusMsg("WSエラー発生", "red");
         };
 
         socket.onclose = () => {
             setStatus("disconnected");
+            setStatusMsg("再接続中...", "orange");
+            stopHeartbeat();
             reconnectTimeout = setTimeout(() => connectRoom(roomId), 5000);
         };
 
     } catch (e) {
         console.error(e);
         setStatus("disconnected");
+        setStatusMsg("接続例外: " + e.message, "red");
         reconnectTimeout = setTimeout(() => connectRoom(roomId), 5000);
     }
 }
 
-// ルーム切替
-document.getElementById("switchRoom").onclick = () => {
-    const roomId = document.getElementById("roomInput").value.trim();
-    if (roomId) connectRoom(roomId);
-};
+// 受信メッセージ処理
+function handleWSMessage(msg) {
+    const data = msg.data;
+    if (data.startsWith("ACK") || data.startsWith("ERR")) return;
 
-// 初期ルーム
-connectRoom(490133);
-
-// ステータス関数
-export function setStatus(status) {
-    const span = document.getElementById("statusSpan");
-    span.className = "";
-    if (status === "connecting") span.textContent = "Status: 再接続中";
-    else if (status === "connected") span.textContent = "Status: 接続中";
-    else span.textContent = "Status: 切断";
+    try {
+        const obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`, ""));
+        if (obj.cm) showComment(obj);
+        if (obj.g) showGift(obj);
+        if (obj.main_name) document.getElementById("roomNameSpan").textContent = "Room: " + obj.main_name;
+        if (!startedAt && obj.started_at) startedAt = obj.started_at * 1000;
+    } catch (e) {
+        console.error("JSON解析エラー", e, data);
+        setStatusMsg("JSON解析エラー", "red");
+    }
 }
