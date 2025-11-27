@@ -1,44 +1,35 @@
-// server.js
 import express from "express";
-import { WebSocketServer } from "ws";
 import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
-// クライアント用静的配信
-app.use(express.static("public"));
+// public フォルダの静的ファイル配信
+app.use(express.static(path.join(__dirname, "public")));
 
-// WebSocketサーバー（ブラウザ用）
-const wss = new WebSocketServer({ port: 8080 });
-let clients = [];
-
-wss.on("connection", (ws) => {
-    clients.push(ws);
-    ws.on("message", async (msg) => {
-        const obj = JSON.parse(msg);
-        if(obj.room_id) {
-            // Showroom公式WebSocketに接続して中継
-            const data = await getInitialData(obj.room_id);
-            ws.send(JSON.stringify({ type:"comment_log", data: data.comments }));
-            ws.send(JSON.stringify({ type:"gift_log", data: data.gifts }));
-            // ここで公式WSに接続してリアルタイム中継開始
-        }
-    });
-    ws.on("close", ()=>{ clients = clients.filter(c=>c!==ws); });
+// / で自動的に sr_live.html を返す
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public/sr_live.html"));
 });
 
-// 放送ページから初期ログ取得（簡略例）
-async function getInitialData(roomId){
-    const res = await fetch(`https://www.showroom-live.com/${roomId}`);
-    const html = await res.text();
-    // broadcast_keyを正規表現で抽出（実際はDOM解析が必要）
-    const broadcastKeyMatch = html.match(/broadcast_key":"(\w+)"/);
-    const broadcast_key = broadcastKeyMatch ? broadcastKeyMatch[1] : null;
+// broadcast_key 取得 API
+app.get("/get_broadcast_key", async (req, res) => {
+    const roomId = req.query.room_id;
+    if (!roomId) return res.status(400).json({ error: "room_id is required" });
 
-    // ここで公式WebSocket接続して初期コメント・ギフトを取得する
-    // サンプルでは空データ返却
-    return { comments: [], gifts: [] };
-}
+    try {
+        const response = await fetch(`https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`);
+        const data = await response.json();
+        if (data.bcsvr_key) res.json({ broadcast_key: data.bcsvr_key });
+        else res.status(404).json({ error: "broadcast_key not found" });
+    } catch (e) {
+        res.status(500).json({ error: e.toString() });
+    }
+});
 
-app.listen(port, ()=>console.log(`Server running at http://localhost:${port}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
