@@ -1,12 +1,13 @@
-window.hbInterval = null;
+// heartbeat.js
+let hbInterval = null;
 
-function startHeartbeat(){
+function startHeartbeat(ws){
     stopHeartbeat();
-    window.hbInterval = setInterval(()=>{
-        if(window.socket && window.socket.readyState===WebSocket.OPEN) window.socket.send("PING");
-    },10000);
+    hbInterval = setInterval(()=>{
+        if(ws && ws.readyState===WebSocket.OPEN) ws.send("PING");
+    }, 10000); // 10秒
 }
 
 function stopHeartbeat(){
-    if(window.hbInterval) clearInterval(window.hbInterval);
+    if(hbInterval) clearInterval(hbInterval);
 }
