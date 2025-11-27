@@ -1,76 +1,58 @@
-// WebSocket 接続・再接続
-window.websocket = (function(){
-    let socket = null;
-    let broadcastKey = null;
-    let reconnectTimeout = null;
+// ===============================
+// websocket.js（グローバル版）
+// ===============================
 
-    function setStatus(status){
-        const span = document.getElementById("statusSpan");
-        span.className="";
-        if(status==="connecting") span.textContent="Status: 再接続中", span.classList.add("connecting");
-        else if(status==="connected") span.textContent="Status: 接続中", span.classList.add("connected");
-        else span.textContent="Status: 切断", span.classList.add("disconnected");
+let ws = null;
+let hbTimer = null;
+
+function logMessage(msg) {
+  const log = document.getElementById("log");
+  log.textContent += msg + "\n";
+  log.scrollTop = log.scrollHeight;
+}
+
+function startConnection() {
+  const roomId = document.getElementById("roomId").value.trim();
+  if (!roomId) return alert("Room ID を入力してください");
+
+  document.getElementById("status").textContent = "接続中…";
+
+  ws = new WebSocket(`wss://sr-live-server.onrender.com/ws?room_id=${roomId}`);
+
+  ws.onopen = () => {
+    document.getElementById("status").textContent = "接続されました。";
+    logMessage("WebSocket: connected");
+
+    startHeartbeat(ws);
+  };
+
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+
+    if (data.type === "room") {
+      document.getElementById("room_name").textContent = data.room_name;
+      document.getElementById("start_time").textContent = data.start_time;
     }
 
-    async function connectRoom(roomId){
-        if(!roomId) return;
-        if(reconnectTimeout) clearTimeout(reconnectTimeout);
-        document.getElementById("errorSpan").textContent = "";
-
-        setStatus("connecting");
-
-        try {
-            const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
-            const json = await res.json();
-            if(!json.broadcast_key){ document.getElementById("errorSpan").textContent="broadcast_key取得失敗"; return; }
-            broadcastKey = json.broadcast_key;
-
-            if(socket) socket.close();
-            socket = new WebSocket("wss://online.showroom-live.com");
-
-            socket.onopen = () => {
-                socket.send("SUB\t"+broadcastKey);
-                setStatus("connected");
-                window.heartbeat.startHB(socket);
-            };
-
-            socket.onmessage = (msg) => {
-                try {
-                    const data = msg.data;
-                    if(data.startsWith("ACK") || data.startsWith("ERR")) return;
-                    const obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`,""));
-                    if(obj.cm) window.commentGift.showComment(obj);
-                    if(obj.g) window.commentGift.showGift(obj);
-                    if(obj.main_name) document.getElementById("roomNameSpan").textContent="Room: "+obj.main_name;
-                    if(obj.started_at) window.heartbeat.setStarted(obj.started_at*1000);
-                } catch(e){
-                    console.error(e);
-                    document.getElementById("errorSpan").textContent = e.toString();
-                }
-            };
-
-            socket.onclose = () => {
-                setStatus("disconnected");
-                reconnectTimeout = setTimeout(()=>connectRoom(roomId),5000);
-            };
-
-            window.commentGift.reset();
-
-        } catch(e){
-            console.error(e);
-            document.getElementById("errorSpan").textContent = e.toString();
-            setStatus("disconnected");
-            reconnectTimeout = setTimeout(()=>connectRoom(roomId),5000);
-        }
+    if (data.type === "elapsed") {
+      document.getElementById("elapsed").textContent = data.elapsed;
     }
 
-    document.getElementById("switchRoom").onclick = ()=>{
-        const newRoomId = document.getElementById("roomInput").value.trim();
-        if(newRoomId) connectRoom(newRoomId);
-    };
+    // コメント・ギフト処理（commentGift.js に定義）
+    if (data.type === "comment" || data.type === "gift") {
+      handleCommentGift(data);
+    }
+  };
 
-    // 初期ルーム
-    connectRoom("490133");
+  ws.onerror = (err) => {
+    document.getElementById("status").textContent = "エラー発生";
+    logMessage("WebSocket ERROR: " + err);
+  };
 
-    return { connectRoom };
-})();
+  ws.onclose = () => {
+    document.getElementById("status").textContent = "切断されました";
+    logMessage("WebSocket: disconnected");
+    stopHeartbeat();
+  };
+}
+

@@ -1,70 +1,105 @@
-import express from "express";
-import fetch from "node-fetch";
-import path from "path";
-import { fileURLToPath } from "url";
-import { WebSocketServer } from "ws";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// ===============================
+// server.js  完全同期版（Render対応）
+// ===============================
+const express = require("express");
+const fetch = require("node-fetch");
+const path = require("path");
+const WebSocket = require("ws");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// public 配下の静的ファイル配信
+// public 配信
 app.use(express.static(path.join(__dirname, "public")));
 
-// / で index.html を返す
+// sr_live.html を返す
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public/index.html"));
+    res.sendFile(path.join(__dirname, "public/sr_live.html"));
 });
 
-// broadcast_key 取得 API
+// broadcast_key をフロントへ渡すAPI
 app.get("/get_broadcast_key", async (req, res) => {
-  const roomId = req.query.room_id;
-  if (!roomId) return res.status(400).json({ error: "room_id is required" });
+    const roomId = req.query.room_id;
+    if (!roomId) return res.status(400).json({ error: "room_id required" });
 
-  try {
-    const response = await fetch(
-      `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`
-    );
-    const data = await response.json();
-    if (data.bcsvr_key) res.json({ broadcast_key: data.bcsvr_key });
-    else res.status(404).json({ error: "broadcast_key not found" });
-  } catch (e) {
-    res.status(500).json({ error: e.toString() });
-  }
-});
-
-// WebSocketServer（ブラウザ中継用）
-const wss = new WebSocketServer({ port: 8080 });
-console.log("WebSocketServer listening on port 8080");
-
-wss.on("connection", ws => {
-  console.log("Browser connected");
-  ws.on("message", async message => {
-    // ブラウザから {type:"subscribe", broadcastKey:"xxxx"} が送られてくる想定
-    let msgObj;
     try {
-      msgObj = JSON.parse(message.toString());
-    } catch {
-      return;
+        const url = `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`;
+        const result = await fetch(url);
+        const json = await result.json();
+
+        if (json.bcsvr_key) res.json({ broadcast_key: json.bcsvr_key });
+        else res.status(404).json({ error: "broadcast_key not found" });
+    } catch (e) {
+        res.status(500).json({ error: e.toString() });
     }
-    if (msgObj.type === "subscribe" && msgObj.broadcastKey) {
-      const key = msgObj.broadcastKey;
-      // Showroom 公式 WebSocket に接続
-      const ShowroomWS = new WebSocket(`wss://online.showroom-live.com`);
-      ShowroomWS.on("open", () => {
-        ShowroomWS.send("SUB\t" + key);
-        console.log("Subscribed to Showroom room with key:", key);
-      });
-      ShowroomWS.on("message", data => {
-        // 中継してブラウザに送る
-        ws.send(data.toString());
-      });
-      ShowroomWS.on("close", () => console.log("Showroom WS closed"));
-      ShowroomWS.on("error", err => console.error("Showroom WS error:", err));
-    }
-  });
 });
 
-app.listen(PORT, () => console.log(`Express server running on port ${PORT}`));
+// HTTPサーバー作成
+const server = app.listen(PORT, () =>
+    console.log(`Server running: ${PORT}`)
+);
+
+// ===============================
+// WebSocket 中継サーバー
+// ===============================
+const wss = new WebSocket.Server({ server, path: "/ws" });
+
+let showroomWS = null;
+let lastKey = null;
+let reconnectTimer = null;
+
+// -------------------------------
+// Showroom WS へ接続
+// -------------------------------
+function connectShowroomWS(broadcastKey) {
+    if (showroomWS) showroomWS.close();
+
+    const url = `wss://bcsv-showroom1.showroom-cdn.com/?bcsvr_key=${broadcastKey}`;
+    console.log("Connecting to Showroom WS:", url);
+
+    showroomWS = new WebSocket(url);
+
+    showroomWS.on("open", () => {
+        console.log("Showroom WS connected");
+        clearTimeout(reconnectTimer);
+    });
+
+    showroomWS.on("message", (msg) => {
+        // そのまま全ブラウザへ転送
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(msg.toString());
+            }
+        });
+    });
+
+    showroomWS.on("close", () => {
+        console.log("Showroom WS closed. Reconnecting...");
+        reconnectTimer = setTimeout(() => connectShowroomWS(lastKey), 3000);
+    });
+
+    showroomWS.on("error", (err) => {
+        console.log("Showroom WS error:", err);
+    });
+}
+
+// -------------------------------
+// ブラウザ → Node 〜 Relay メッセージ
+// -------------------------------
+wss.on("connection", (socket) => {
+    console.log("Browser connected to relay");
+
+    socket.on("message", async (msg) => {
+        try {
+            const data = JSON.parse(msg);
+
+            // broadcast_key 渡されたら Showroom WSへ接続
+            if (data.broadcast_key) {
+                lastKey = data.broadcast_key;
+                connectShowroomWS(lastKey);
+            }
+        } catch (e) {
+            console.log("Browser msg error:", e);
+        }
+    });
+});
