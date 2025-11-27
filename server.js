@@ -1,58 +1,65 @@
 // ===============================
-// server.js  完全同期版（Render対応）
+// server.js（Node22 + ESM 完全対応）
 // ===============================
-const express = require("express");
-const fetch = require("node-fetch");
-const path = require("path");
-const WebSocket = require("ws");
+import express from "express";
+import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+import { WebSocketServer } from "ws";
+import WebSocket from "ws";
+
+// ESM の __dirname 再現
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// public 配信
+// public フォルダの静的配信
 app.use(express.static(path.join(__dirname, "public")));
 
-// sr_live.html を返す
+// SR HTML
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public/sr_live.html"));
 });
 
-// broadcast_key をフロントへ渡すAPI
+// broadcast_key取得 API
 app.get("/get_broadcast_key", async (req, res) => {
     const roomId = req.query.room_id;
     if (!roomId) return res.status(400).json({ error: "room_id required" });
 
     try {
-        const url = `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`;
-        const result = await fetch(url);
-        const json = await result.json();
+        const apiUrl = `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`;
+        const r = await fetch(apiUrl);
+        const json = await r.json();
 
         if (json.bcsvr_key) res.json({ broadcast_key: json.bcsvr_key });
         else res.status(404).json({ error: "broadcast_key not found" });
-    } catch (e) {
-        res.status(500).json({ error: e.toString() });
+
+    } catch (err) {
+        res.status(500).json({ error: err.toString() });
     }
 });
 
-// HTTPサーバー作成
+// HTTP Server
 const server = app.listen(PORT, () =>
-    console.log(`Server running: ${PORT}`)
+    console.log(`Server running on ${PORT}`)
 );
 
 // ===============================
-// WebSocket 中継サーバー
+// WebSocket Relay（ブラウザ → Node → Showroom）
 // ===============================
-const wss = new WebSocket.Server({ server, path: "/ws" });
+const wss = new WebSocketServer({ server, path: "/ws" });
 
 let showroomWS = null;
 let lastKey = null;
 let reconnectTimer = null;
 
-// -------------------------------
-// Showroom WS へ接続
-// -------------------------------
+// Showroom へ接続開始
 function connectShowroomWS(broadcastKey) {
-    if (showroomWS) showroomWS.close();
+    if (showroomWS) {
+        try { showroomWS.close(); } catch {}
+    }
 
     const url = `wss://bcsv-showroom1.showroom-cdn.com/?bcsvr_key=${broadcastKey}`;
     console.log("Connecting to Showroom WS:", url);
@@ -65,7 +72,6 @@ function connectShowroomWS(broadcastKey) {
     });
 
     showroomWS.on("message", (msg) => {
-        // そのまま全ブラウザへ転送
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(msg.toString());
@@ -74,32 +80,28 @@ function connectShowroomWS(broadcastKey) {
     });
 
     showroomWS.on("close", () => {
-        console.log("Showroom WS closed. Reconnecting...");
+        console.log("Showroom WS closed → reconnecting...");
         reconnectTimer = setTimeout(() => connectShowroomWS(lastKey), 3000);
     });
 
     showroomWS.on("error", (err) => {
-        console.log("Showroom WS error:", err);
+        console.log("Showroom WS Error:", err);
     });
 }
 
-// -------------------------------
-// ブラウザ → Node 〜 Relay メッセージ
-// -------------------------------
+// ブラウザ WS 接続
 wss.on("connection", (socket) => {
-    console.log("Browser connected to relay");
+    console.log("Browser connected");
 
-    socket.on("message", async (msg) => {
+    socket.on("message", (msg) => {
         try {
             const data = JSON.parse(msg);
-
-            // broadcast_key 渡されたら Showroom WSへ接続
             if (data.broadcast_key) {
                 lastKey = data.broadcast_key;
                 connectShowroomWS(lastKey);
             }
         } catch (e) {
-            console.log("Browser msg error:", e);
+            console.log("Browser msg parse error:", e);
         }
     });
 });
