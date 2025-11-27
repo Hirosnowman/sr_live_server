@@ -1,54 +1,56 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>SR コメント・ギフト 安定版</title>
-<link rel="stylesheet" href="css/style.css">
+<meta charset="utf-8">
+<title>SR コメント・ギフト</title>
+<style>
+body { font-family:sans-serif; margin:0; background:#f0f0f0; }
+header { position:fixed; top:0; left:0; width:100%; background:#ddd; padding:5px 10px; z-index:100; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+input { padding:3px; font-size:1em; width:100px; }
+button { padding:3px 8px; font-size:1em; }
+.container { display:flex; gap:10px; margin-top:60px; padding:10px; }
+.column { flex:1; border:1px solid #ccc; background:#fff; padding:5px; max-height:600px; overflow-y:auto; }
+.column h2 { text-align:center; margin:5px 0; font-size:1.2em; }
+#comment div, .giftItem { display:flex; align-items:center; margin-bottom:5px; }
+#comment img, .giftItem img { width:40px; height:40px; margin-right:5px; }
+.giftItem { background:#f9f9f9; padding:2px 5px; border-radius:5px; box-shadow:1px 1px 3px #aaa; }
+#statusSpan.connecting { color:blue; }
+#statusSpan.connected { color:green; }
+#statusSpan.disconnected { color:red; }
+</style>
 </head>
 <body>
 
 <header>
   <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
-  <button id="switchRoom">接続</button>
+  <button onclick="connectRoom(document.getElementById('roomInput').value)">接続</button>
   <span id="statusSpan" class="disconnected">Status: 待機中</span>
   <span id="hbSpan">HB: 10s</span>
+  <span id="hbError" style="margin-left:10px;color:red"></span>
   <span id="roomNameSpan">Room: -</span>
   <span id="startedSpan">開始: -</span>
   <span id="elapsedSpan">経過: -</span>
 </header>
 
 <div class="container">
-    <div class="column">
-        <h2>コメント</h2>
-        <div id="comment"></div>
-    </div>
-    <div class="column">
-        <h2>有料ギフト</h2>
-        <div id="paidGift"></div>
-    </div>
-    <div class="column">
-        <h2>無料ギフト</h2>
-        <div id="freeGift"></div>
-    </div>
+  <div class="column">
+    <h2>コメント</h2>
+    <div id="comment"></div>
+  </div>
+  <div class="column">
+    <h2>有料ギフト</h2>
+    <div id="paidGift"></div>
+  </div>
+  <div class="column">
+    <h2>無料ギフト</h2>
+    <div id="freeGift"></div>
+  </div>
 </div>
 
-<!-- 3分割 JS をモジュールとして読み込む -->
-<script type="module" src="js/commentGift.js"></script>
-<script type="module" src="js/heartbeat.js"></script>
-<script type="module" src="js/websocket.js"></script>
-
-<script type="module">
-import { connectRoom } from "./js/ws.js";
-
-// 初期ルーム接続
-document.getElementById("switchRoom").onclick = ()=>{
-    const roomId = document.getElementById("roomInput").value.trim();
-    connectRoom(roomId);
-};
-
-// オプション: ページロード時に初期接続
-// connectRoom("490133");
-</script>
+<!-- JS -->
+<script src="js/commentGift.js"></script>
+<script src="js/heartbeat.js"></script>
+<script src="js/websocket.js"></script>
 
 </body>
 </html>
