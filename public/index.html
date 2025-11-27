@@ -34,6 +34,18 @@
 
 <script src="js/websocket.js"></script>
 <script src="js/heartbeat.js"></script>
-<script src="js/commentGift.js"></script>
+<script type="module">
+import { connectRoom } from "./js/ws.js";
+
+// 初期ルーム接続
+document.getElementById("switchRoom").onclick = ()=>{
+    const roomId = document.getElementById("roomInput").value.trim();
+    connectRoom(roomId);
+};
+
+// オプション: ページロード時に初期接続
+// connectRoom("490133");
+</script>
+
 </body>
 </html>
