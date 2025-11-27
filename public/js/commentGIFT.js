@@ -1,7 +1,8 @@
-let startedAt = null;
+export const commentSettings = { size: 14, color: "#000000" };
+export const paidSettings = { size: 14, color: "#000000" };
+export const freeSettings = { size: 14, color: "#000000" };
 
-// コメント表示
-function showComment(c) {
+export function showComment(c) {
     const div = document.createElement("div");
     const img = document.createElement("img");
     img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
@@ -12,11 +13,10 @@ function showComment(c) {
     document.getElementById("comment").prepend(div);
 }
 
-// ギフト表示
 const paidGiftMap = {};
 const freeGiftMap = {};
 
-function showGift(g) {
+export function showGift(g) {
     const gt = parseInt(g.gt);
     let containerId, giftMap;
     if (gt === 2) { containerId = "freeGift"; giftMap = freeGiftMap; }
@@ -41,34 +41,17 @@ function showGift(g) {
     div.appendChild(img1); div.appendChild(img2); div.appendChild(p);
     document.getElementById(containerId).prepend(div);
 
-    giftMap[key] = { div: div, count: g.n };
+    giftMap[key] = { div, count: g.n };
 }
 
-// ステータス色切替
-function setStatus(status) {
+export function setStatus(status) {
     const span = document.getElementById("statusSpan");
     span.className = "";
-    if (status === "connecting") span.classList.add("connecting");
-    else if (status === "connected") span.classList.add("connected");
-    else span.classList.add("disconnected");
+    if (status === "connecting") span.textContent = "Status: 再接続中";
+    else if (status === "connected") span.textContent = "Status: 接続中";
+    else span.textContent = "Status: 切断";
 }
 
-// HB横メッセージ表示
-function setStatusMsg(text, color = "black") {
-    const span = document.getElementById("statusMsg");
-    span.textContent = text;
-    span.style.color = color;
+export function setError(msg) {
+    document.getElementById("hbSpan").textContent = `HB: 10s / ${msg}`;
 }
-
-// 経過時間表示
-setInterval(() => {
-    if (startedAt) {
-        const now = Date.now();
-        const diff = Math.floor((now - startedAt) / 1000);
-        const h = Math.floor(diff / 3600);
-        const m = Math.floor((diff % 3600) / 60);
-        const s = diff % 60;
-        document.getElementById("startedSpan").textContent = "開始: " + new Date(startedAt).toLocaleString();
-        document.getElementById("elapsedSpan").textContent = `経過: ${h}時間 ${m}分 ${s}秒`;
-    }
-}, 1000);

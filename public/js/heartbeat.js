@@ -1,18 +1,16 @@
 let hbInterval = null;
 
-function startHeartbeat(sock) {
-    stopHeartbeat();
+export function startHeartbeat(socket) {
+    if (hbInterval) clearInterval(hbInterval);
     hbInterval = setInterval(() => {
-        if (sock && sock.readyState === WebSocket.OPEN) {
-            sock.send("PING");
-            document.getElementById("hbSpan").textContent = "HB: 10s";
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send("PING");
+            console.log("[Heartbeat] PING sent");
         }
     }, 10000);
 }
 
-function stopHeartbeat() {
-    if (hbInterval) {
-        clearInterval(hbInterval);
-        hbInterval = null;
-    }
+export function stopHeartbeat() {
+    if (hbInterval) clearInterval(hbInterval);
+    hbInterval = null;
 }
