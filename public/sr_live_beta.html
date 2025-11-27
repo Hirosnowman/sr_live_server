@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>SR コメント・ギフト 3ブロック</title>
+<title>SR コメント・ギフト 3ブロック（完全版）</title>
 <style>
 body { font-family: sans-serif; margin: 0; background:#f0f0f0; }
 header { position: fixed; top:0; left:0; right:0; background:#333; color:#fff; padding:5px; z-index:10; display:flex; align-items:center; gap:10px; font-size:14px; }
@@ -23,61 +23,73 @@ header button { padding:3px 6px; font-size:14px; }
 .giftItem { display:flex; align-items:center; background:#f9f9f9; padding:2px 5px; border-radius:5px; margin-bottom:3px; box-shadow:1px 1px 2px #aaa; }
 .giftItem img { width:30px;height:30px;margin-right:5px; border-radius:50%; }
 .giftItem p { margin:0; font-size:12px; }
-
-/* 設定パネル */
-#settingsPanel { position:fixed; top:40px; right:10px; background:#fff; border:1px solid #333; padding:5px; z-index:20; display:none; font-size:12px; }
-#settingsPanel label { display:block; margin-bottom:3px; }
 </style>
 </head>
 <body>
 
 <header>
     RoomID: <input id="roomInput" placeholder="例:490133">
-    <button id="switchRoom">切替</button>
+    <button id="switchRoom">接続/切替</button>
     <span id="statusText">Status: 待機中</span>
     <span id="roomName">Room: -</span>
+    <span id="hbText">HB: 10s</span>
 </header>
 
 <div class="container">
-    <!-- コメント -->
-    <div id="commentCol" class="column resizable">
+    <div class="column resizable">
         <h2>コメント</h2>
         <div id="commentList"></div>
     </div>
-
-    <!-- 有料ギフト -->
-    <div id="paidCol" class="column resizable">
+    <div class="column resizable">
         <h2>有料ギフト</h2>
         <div id="paidGiftList"></div>
     </div>
-
-    <!-- 無料ギフト -->
-    <div id="freeCol" class="column resizable">
+    <div class="column resizable">
         <h2>無料ギフト</h2>
         <div id="freeGiftList"></div>
     </div>
 </div>
 
 <script>
-// --- 設定 ---
 let commentStyle = { size:12, color:"#000000" };
 let paidStyle = { size:12, color:"#0000ff" };
 let freeStyle = { size:12, color:"#00aa00" };
 
-// --- ギフトポイント（サンプル） ---
-const giftPoints = { 3000421:1, 3000422:5, 3000423:10, 3000424:50, 3000425:100 };
-
-// --- ユーザーポイントは不要（今回は非表示） ---
-let giftListData = []; // 裏で保持
-let userPoints = {}; 
-let giftAccum = {}; 
-
-// --- WebSocket ---
 let socket = null;
 let currentRoom = "";
+let hbInterval = null;
+let receivedComments = new Set();
+let receivedGifts = new Set();
 
-// --- コメント追加 ---
+// WebSocket URL生成（HTTP->WS, HTTPS->WSS）
+function getWsUrl(){
+    if(location.origin.startsWith("https")) return location.origin.replace(/^https/, "wss");
+    return location.origin.replace(/^http/, "ws");
+}
+
+// ステータス更新
+function setStatus(text, color){
+    const el = document.getElementById("statusText");
+    el.textContent = "Status: " + text;
+    el.style.color = color;
+}
+
+// Heartbeat 10秒
+function startHeartbeat(){
+    if(hbInterval) clearInterval(hbInterval);
+    hbInterval = setInterval(()=>{
+        if(socket && socket.readyState === WebSocket.OPEN){
+            socket.send(JSON.stringify({type:"hb"}));
+        }
+    }, 10000);
+}
+
+// コメント追加（重複防止）
 function appendComment(c){
+    const key = `${c.time}_${c.ac}_${c.cm}`;
+    if(receivedComments.has(key)) return;
+    receivedComments.add(key);
+
     const div = document.createElement("div");
     div.className = "commentItem";
     const img = document.createElement("img");
@@ -85,14 +97,18 @@ function appendComment(c){
     const p = document.createElement("p");
     p.textContent = `[${c.time}] ${c.ac}: ${c.cm || c.comment || ''}`;
     p.style.color = commentStyle.color;
-    p.style.fontSize = commentStyle.size + "px";
-    div.appendChild(img);
-    div.appendChild(p);
+    p.style.fontSize = commentStyle.size+"px";
+    div.appendChild(img); div.appendChild(p);
     document.getElementById("commentList").appendChild(div);
+    div.scrollIntoView({behavior:"smooth"});
 }
 
-// --- ギフト追加 ---
+// ギフト追加（重複防止）
 function appendGift(g){
+    const key = `${g.time}_${g.ac}_${g.g}`;
+    if(receivedGifts.has(key)) return;
+    receivedGifts.add(key);
+
     const div = document.createElement("div");
     div.className = "giftItem";
     const img1 = document.createElement("img");
@@ -101,51 +117,63 @@ function appendGift(g){
     img2.src = `https://static.showroom-live.com/image/gift/${g.g}_s.png?v=7`;
     const p = document.createElement("p");
     p.textContent = `[${g.time}] ${g.ac}: x${g.n}`;
-    if(g.gt == 1){ 
-        p.style.color = paidStyle.color; p.style.fontSize = paidStyle.size + "px"; 
-        div.appendChild(img1); div.appendChild(img2); div.appendChild(p);
-        document.getElementById("paidGiftList").appendChild(div);
-    } else if(g.gt == 2){
-        p.style.color = freeStyle.color; p.style.fontSize = freeStyle.size + "px";
-        div.appendChild(img1); div.appendChild(img2); div.appendChild(p);
-        document.getElementById("freeGiftList").appendChild(div);
-    }
+    if(g.gt==1){ p.style.color=paidStyle.color; p.style.fontSize=paidStyle.size+"px"; div.appendChild(img1); div.appendChild(img2); div.appendChild(p); document.getElementById("paidGiftList").appendChild(div);}
+    else if(g.gt==2){ p.style.color=freeStyle.color; p.style.fontSize=freeStyle.size+"px"; div.appendChild(img1); div.appendChild(img2); div.appendChild(p); document.getElementById("freeGiftList").appendChild(div);}
+    div.scrollIntoView({behavior:"smooth"});
 }
 
-// --- WebSocket 接続 ---
+// WebSocket接続
 function connectRoom(roomId){
     currentRoom = roomId;
     document.getElementById("roomName").textContent = "Room: " + roomId;
+    setStatus("再接続中", "blue");
+
     if(socket) socket.close();
 
-    socket = new WebSocket(location.origin.replace(/^http/, "ws"));
-    socket.onopen = () => { 
-        socket.send(JSON.stringify({ room_id: roomId }));
-        document.getElementById("statusText").textContent = "Status: 接続中";
+    socket = new WebSocket(getWsUrl());
+
+    socket.onopen = ()=>{
+        setStatus("正常接続中", "green");
+        socket.send(JSON.stringify({room_id: roomId}));
+        startHeartbeat();
     };
-    socket.onmessage = (e) => {
+
+    socket.onmessage = (e)=>{
         try{
             const obj = JSON.parse(e.data);
             switch(obj.type){
                 case "comment": appendComment(obj.data); break;
                 case "gift": appendGift(obj.data); break;
-                case "comment_log": obj.data.forEach(c=>appendComment(c)); break;
-                case "gift_log": obj.data.forEach(g=>appendGift(g)); break;
-                case "gift_list": giftListData = obj.data; break;
+                case "comment_log":
+                case "gift_log":
+                    obj.data.forEach(item=>{ if(obj.type==="comment_log") appendComment(item); else appendGift(item); });
+                    break;
+                case "gift_list": /* 裏で保持 */ break;
                 default: console.log(obj);
             }
-        } catch(err){ console.log("WS parse error", e.data) }
+        }catch(err){ console.log("WS parse error", e.data); }
     };
-    socket.onclose = ()=>{ document.getElementById("statusText").textContent="Status: 切断"; };
+
+    socket.onclose = ()=>{
+        setStatus("切断", "red");
+        clearInterval(hbInterval);
+        setTimeout(()=>connectRoom(currentRoom),3000);
+    };
+
+    socket.onerror = (err)=>{
+        console.log("WS error", err);
+        setStatus("再接続中", "blue");
+        socket.close();
+    };
 }
 
-// --- ルーム切替 ---
+// ルーム切替
 document.getElementById("switchRoom").onclick = ()=>{
     const rid = document.getElementById("roomInput").value.trim();
     if(rid) connectRoom(rid);
 };
 
-// --- 初期接続 ---
+// 初期接続
 connectRoom(490133);
 </script>
 
