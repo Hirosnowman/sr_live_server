@@ -1,58 +1,61 @@
-// ===============================
-// websocket.js（グローバル版）
-// ===============================
+// websocket.js (完全同期版)
+let wsBrowser = null;
+let currentRoomId = null;
+let broadcastKey = null;
 
-let ws = null;
-let hbTimer = null;
-
-function logMessage(msg) {
-  const log = document.getElementById("log");
-  log.textContent += msg + "\n";
-  log.scrollTop = log.scrollHeight;
+function setStatus(text, color = "black") {
+    const s = document.getElementById("statusSpan");
+    s.textContent = `Status: ${text}`;
+    s.style.color = color;
 }
 
-function startConnection() {
-  const roomId = document.getElementById("roomId").value.trim();
-  if (!roomId) return alert("Room ID を入力してください");
+async function connectRoom() {
+    const roomId = document.getElementById("roomInput").value.trim();
+    if (!roomId) return alert("Room ID を入力");
 
-  document.getElementById("status").textContent = "接続中…";
+    currentRoomId = roomId;
+    setStatus("キー取得中...", "blue");
 
-  ws = new WebSocket(`wss://sr-live-server.onrender.com/ws?room_id=${roomId}`);
-
-  ws.onopen = () => {
-    document.getElementById("status").textContent = "接続されました。";
-    logMessage("WebSocket: connected");
-
-    startHeartbeat(ws);
-  };
-
-  ws.onmessage = (ev) => {
-    const data = JSON.parse(ev.data);
-
-    if (data.type === "room") {
-      document.getElementById("room_name").textContent = data.room_name;
-      document.getElementById("start_time").textContent = data.start_time;
+    // --- 最新 broadcast_key 取得 ---
+    const r = await fetch(`/get_broadcast_key?room_id=${roomId}`);
+    const json = await r.json();
+    if (!json.broadcast_key) {
+        setStatus("キー取得失敗", "red");
+        return;
     }
 
-    if (data.type === "elapsed") {
-      document.getElementById("elapsed").textContent = data.elapsed;
-    }
+    broadcastKey = json.broadcast_key;
+    console.log("broadcast_key=", broadcastKey);
 
-    // コメント・ギフト処理（commentGift.js に定義）
-    if (data.type === "comment" || data.type === "gift") {
-      handleCommentGift(data);
-    }
-  };
+    // --- Node.js (Render) 中継サーバーへ接続 ---
+    if (wsBrowser) wsBrowser.close();
 
-  ws.onerror = (err) => {
-    document.getElementById("status").textContent = "エラー発生";
-    logMessage("WebSocket ERROR: " + err);
-  };
+    wsBrowser = new WebSocket(`wss://${location.host}/ws`);
 
-  ws.onclose = () => {
-    document.getElementById("status").textContent = "切断されました";
-    logMessage("WebSocket: disconnected");
-    stopHeartbeat();
-  };
+    wsBrowser.onopen = () => {
+        console.log("Browser → Node WS connected");
+        wsBrowser.send(JSON.stringify({ broadcast_key: broadcastKey }));
+        setStatus("接続中", "green");
+
+        // 過去ログ取得
+        fetchPastLogs(roomId);
+    };
+
+    wsBrowser.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleIncomingMessage(msg);
+    };
+
+    wsBrowser.onclose = () => {
+        console.log("Browser WS closed → retrying...");
+        setStatus("再接続中...", "blue");
+        setTimeout(() => connectRoom(), 3000);
+    };
+
+    wsBrowser.onerror = () => {
+        setStatus("エラー", "red");
+    };
 }
 
+window.connectRoom = connectRoom;
+window.wsBrowser = () => wsBrowser;

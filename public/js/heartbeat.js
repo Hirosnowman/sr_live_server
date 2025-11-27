@@ -1,24 +1,15 @@
-// ===============================
-// heartbeat.js（グローバル版）
-// ===============================
+// heartbeat.js
+let hbTimer = null;
 
-let hbCount = 0;
+function startHeartbeat() {
+    if (hbTimer) clearInterval(hbTimer);
 
-function startHeartbeat(ws) {
-  stopHeartbeat();
-
-  hbTimer = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "ping" }));
-      hbCount++;
-      document.getElementById("hb").textContent = hbCount + " 回";
-    }
-  }, 10000); // 10秒
+    hbTimer = setInterval(() => {
+        const ws = window.wsBrowser();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "hb", t: Date.now() }));
+        }
+    }, 10000); // 10秒
 }
 
-function stopHeartbeat() {
-  if (hbTimer) {
-    clearInterval(hbTimer);
-    hbTimer = null;
-  }
-}
+startHeartbeat();
