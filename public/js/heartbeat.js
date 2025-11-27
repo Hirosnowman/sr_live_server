@@ -1,13 +1,10 @@
-// heartbeat.js
 let hbInterval = null;
 
-function startHeartbeat(ws){
-    stopHeartbeat();
-    hbInterval = setInterval(()=>{
-        if(ws && ws.readyState===WebSocket.OPEN) ws.send("PING");
-    }, 10000); // 10秒
-}
-
-function stopHeartbeat(){
-    if(hbInterval) clearInterval(hbInterval);
+export function startHeartbeat(socket) {
+    if (hbInterval) clearInterval(hbInterval);
+    hbInterval = setInterval(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send("PING");
+        }
+    }, 10000);
 }
