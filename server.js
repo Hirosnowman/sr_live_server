@@ -1,5 +1,5 @@
 // ===============================
-// server.js（Node22 + ESM / Render用）
+// server.js（Node22 + ESM / Render 配信用）
 // ===============================
 import express from "express";
 import fetch from "node-fetch";
@@ -15,7 +15,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// public フォルダを配信
+// -------------------------------
+// public フォルダ配信
+// -------------------------------
 app.use(express.static(path.join(__dirname, "public")));
 
 // デフォルト HTML
@@ -32,26 +34,18 @@ app.get("/get_broadcast_key", async (req, res) => {
 
     try {
         const apiUrl = `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`;
-        const r = await fetch(apiUrl, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-                "Referer": `https://www.showroom-live.com/room/profile?room_id=${roomId}`,
-                "Accept": "application/json, text/javascript, */*; q=0.01"
-            }
-        });
+        const r = await fetch(apiUrl);
         const json = await r.json();
 
         if (json.bcsvr_key) res.json({ broadcast_key: json.bcsvr_key });
-        else res.status(404).json({ error: "broadcast_key not found", data: json });
-
+        else res.status(404).json({ error: "broadcast_key not found" });
     } catch (err) {
         res.status(500).json({ error: err.toString() });
     }
 });
 
-
 // ===============================
-// ② 過去コメント取得 API（コメント配列のみ返す）
+// ② 過去コメント取得 API (/comment_log)
 // ===============================
 app.get("/comment_log", async (req, res) => {
     const roomId = req.query.room_id;
@@ -66,21 +60,19 @@ app.get("/comment_log", async (req, res) => {
             return res.status(404).json({ error: "no comments" });
         }
 
-        // ブラウザ側は配列を期待しているので comments のみ返す
+        // ブラウザは配列だけ期待
         res.json(json.comments);
-
     } catch (e) {
         res.status(500).json({ error: e.toString() });
     }
 });
 
-
 // ===============================
 // HTTP Server 起動
 // ===============================
-const server = app.listen(PORT, () =>
-    console.log(`Server running on ${PORT}`)
-);
+const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
 
 // ===============================
 // WebSocket Relay（Browser → Node → Showroom）
