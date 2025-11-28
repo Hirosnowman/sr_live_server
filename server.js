@@ -51,7 +51,7 @@ app.get("/get_broadcast_key", async (req, res) => {
 
 
 // ===============================
-// ② 過去コメント取得 API
+// ② 過去コメント取得 API（コメント配列のみ返す）
 // ===============================
 app.get("/comment_log", async (req, res) => {
     const roomId = req.query.room_id;
@@ -62,7 +62,9 @@ app.get("/comment_log", async (req, res) => {
         const r = await fetch(url);
         const json = await r.json();
 
-        if (!json.comments) return res.status(404).json({ error: "no comments" });
+        if (!json.comments || !Array.isArray(json.comments)) {
+            return res.status(404).json({ error: "no comments" });
+        }
 
         // ブラウザ側は配列を期待しているので comments のみ返す
         res.json(json.comments);
@@ -71,6 +73,7 @@ app.get("/comment_log", async (req, res) => {
         res.status(500).json({ error: e.toString() });
     }
 });
+
 
 // ===============================
 // HTTP Server 起動
