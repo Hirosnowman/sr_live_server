@@ -2,129 +2,56 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>SR コメント・ギフト + 過去コメントテスト</title>
+<meta charset="UTF-8">
+<title>過去コメント取得テスト</title>
 <style>
-body { font-family:sans-serif; margin:0; background:#f0f0f0; }
-header { position:fixed; top:0; left:0; width:100%; background:#ddd; padding:5px 10px; z-index:100; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-input{padding:3px;font-size:1em;width:100px;}
-button{padding:3px 8px;font-size:1em;}
-.container{display:flex;gap:10px;margin-top:60px;padding:10px;}
-.column{flex:1;border:1px solid #ccc;background:#fff;padding:5px;max-height:600px;overflow-y:auto;}
-#comment div{display:flex;align-items:center;margin-bottom:5px;}
-#comment img{width:40px;height:40px;margin-right:5px;}
-.giftItem{display:flex;align-items:center;background:#f9f9f9;padding:2px 5px;border-radius:5px;margin-bottom:5px;box-shadow:1px 1px 3px #aaa;}
-.giftItem img{width:40px;height:40px;margin-right:5px;}
-.column h2{text-align:center;margin:5px 0;font-size:1.2em;}
-#settingsPanel{display:none;position:absolute;right:10px;top:40px;background:#fff;border:1px solid #ccc;padding:5px;z-index:200;font-size:0.9em;}
-#settingsPanel div{margin-bottom:5px;}
+body { font-family:sans-serif; background:#f0f0f0; padding:20px; }
+#comment { border:1px solid #ccc; background:#fff; padding:10px; max-height:600px; overflow-y:auto; }
+#comment div { display:flex; align-items:center; margin-bottom:5px; }
+#comment img { width:40px; height:40px; margin-right:5px; }
 </style>
 </head>
 <body>
 
-<header>
-  <label>Room ID: <input type="text" id="roomInput" value="490133"></label>
-  <button id="switchRoom">表示切替</button>
-  <button id="loadPast">過去コメント取得</button>
-  <span id="statusSpan">Status: 待機中</span>
-  <span id="roomNameSpan">Room: -</span>
+<h2>過去コメント取得テスト</h2>
+<label>Room ID: <input type="text" id="roomInput" value="198346"></label>
+<button id="loadPast">取得</button>
 
-  <button id="toggleSettings" style="position:absolute; right:10px; top:5px;">設定</button>
-  <div id="settingsPanel">
-    <div><strong>コメント:</strong> 文字サイズ <input type="number" id="commentFontSize" value="14" min="10" max="30"> px
-      色 <input type="color" id="commentColor" value="#000000"></div>
-    <button id="applyDisplaySettings">適用</button>
-  </div>
-</header>
-
-<div class="container">
-    <div class="column">
-        <h2>コメント</h2>
-        <div id="comment"></div>
-    </div>
-    <div class="column">
-        <h2>有料ギフト</h2>
-        <div id="paidGift"></div>
-    </div>
-    <div class="column">
-        <h2>無料ギフト</h2>
-        <div id="freeGift"></div>
-    </div>
-</div>
+<div id="comment"></div>
 
 <script>
-let broadcastKey = null;
-let socket = null;
-
-// 設定
-let commentSettings = {size:14, color:"#000000"};
-const settingsPanel = document.getElementById("settingsPanel");
-document.getElementById("toggleSettings").onclick = ()=>{
-    settingsPanel.style.display = (settingsPanel.style.display==="none")?"block":"none";
-};
-document.getElementById("applyDisplaySettings").onclick = () => {
-    commentSettings.size = parseInt(document.getElementById("commentFontSize").value);
-    commentSettings.color = document.getElementById("commentColor").value;
-    document.getElementById("comment").style.fontSize = commentSettings.size+"px";
-    document.getElementById("comment").style.color = commentSettings.color;
-};
-
-// コメント表示
-function showComment(c,補完=false){
-    const div=document.createElement("div");
-    const img=document.createElement("img");
-    img.src=`https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.avatar_id || c.av || 0}.png`;
-    const p=document.createElement("p");
-    p.textContent=`${c.name || c.ac}：${c.comment || c.cm}` + (補完 ? " ★補完★" : "");
+function showComment(c){
+    const div = document.createElement("div");
+    const img = document.createElement("img");
+    img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.avatar_id || c.av || 0}.png`;
+    const p = document.createElement("p");
+    p.textContent = `${c.name || c.ac}：${c.comment || c.cm} ★補完★`;
     div.appendChild(img);
     div.appendChild(p);
     document.getElementById("comment").prepend(div);
 }
 
-// WebSocket接続
-function connectWS(){
-    socket = new WebSocket(`ws://${location.host}/ws`);
-    socket.onopen = ()=>{
-        document.getElementById("statusSpan").textContent="Status: WS接続中";
-        if(broadcastKey) socket.send(JSON.stringify({broadcast_key:broadcastKey}));
-    };
-    socket.onmessage = (msg)=>{
-        try{
-            const obj = JSON.parse(msg.data);
-            if(obj.cm) showComment(obj);
-        } catch(e){ console.error(e); }
-    };
-    socket.onclose = ()=>{ document.getElementById("statusSpan").textContent="Status: 切断"; };
-}
-
-// 過去コメント取得
 document.getElementById("loadPast").onclick = async ()=>{
     const roomId = document.getElementById("roomInput").value.trim();
-    if(!roomId) return;
+    if(!roomId) return alert("Room IDを入力してください");
+
+    document.getElementById("comment").innerHTML = "読み込み中...";
+
     try{
         const res = await fetch(`/get_comment_log?room_id=${roomId}`);
         const logs = await res.json();
-        if(!Array.isArray(logs)) return;
-        logs.slice(-10).forEach(c=>showComment(c,true));
-    } catch(e){ console.error(e); }
+        document.getElementById("comment").innerHTML = "";
+        if(!Array.isArray(logs) || logs.length===0){
+            document.getElementById("comment").textContent = "コメントなし";
+            return;
+        }
+        // 最新10件を表示
+        logs.slice(-10).forEach(c=>showComment(c));
+    } catch(e){
+        console.error(e);
+        document.getElementById("comment").textContent = "取得エラー";
+    }
 };
-
-// ルーム切替
-document.getElementById("switchRoom").onclick = async ()=>{
-    const roomId=document.getElementById("roomInput").value.trim();
-    if(!roomId) return;
-    try{
-        const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
-        const json = await res.json();
-        if(!json.broadcast_key){ alert("broadcast_key取得失敗"); return; }
-        broadcastKey = json.broadcast_key;
-        if(socket) socket.close();
-        connectWS();
-    } catch(e){ console.error(e); alert("broadcast_key取得失敗"); }
-};
-
-// 初期WS接続
-connectWS();
-
 </script>
 </body>
 </html>
