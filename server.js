@@ -41,6 +41,21 @@ app.get("/get_broadcast_key", async (req, res) => {
     }
 });
 
+// 過去コメントAPI
+app.get("/get_comment_log", async (req, res) => {
+    const roomId = req.query.room_id;
+    if(!roomId) return res.status(400).json({ error: "room_id required" });
+
+    try{
+        const r = await fetch(`https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`);
+        const json = await r.json();
+        res.json(json);
+    } catch(e){
+        res.status(500).json({ error: e.toString() });
+    }
+});
+
+
 // HTTP Server
 const server = app.listen(PORT, () =>
     console.log(`Server running on ${PORT}`)
