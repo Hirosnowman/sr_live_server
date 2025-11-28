@@ -298,7 +298,7 @@ function scheduleReconnect(){
 async function loadPastComments(roomId, showAll=false){
     if(!roomId) return;
     try{
-        const res = await fetch(`/comment_log{encodeURIComponent(roomId)}`);
+        const res = await fetch(`/comment_log?room_id=${roomId}`);
         const logs = await res.json();
         if(!Array.isArray(logs)) {
             console.warn('過去コメントAPIが配列を返さない', logs);
