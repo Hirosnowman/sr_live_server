@@ -1,96 +1,56 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>Showroom Live Viewer</title>
-  <style>
-    body { font-family: sans-serif; padding: 16px; }
-    #logBox { width: 100%; height: 300px; overflow-y: scroll; background: #f0f0f0; padding: 8px; }
-    .status { margin: 4px 0; }
-  </style>
-
-  <!-- 3分割JS -->
-  <script src="/js/websocket.js"></script>
-  <script src="/js/heartbeat.js"></script>
-  <script src="/js/commentGift.js"></script>
-
+<meta charset="UTF-8">
+<title>SR 過去コメント表示テスト</title>
+<style>
+body { font-family: sans-serif; margin: 10px; }
+#comment div { display:flex; align-items:center; margin-bottom:5px; }
+#comment img { width:40px; height:40px; margin-right:5px; }
+</style>
 </head>
 <body>
 
-<h2>Showroom 中継ビューア</h2>
-
-<label>Room ID：</label>
-<input id="roomId" value="551215" style="width:120px;">
-<button onclick="startConnection()">接続</button>
-
-<h3>接続情報</h3>
-<div class="status">Status: <span id="status">-</span></div>
-<div class="status">HB: <span id="hb">-</span></div>
-<div class="status">Room: <span id="roomName">-</span></div>
-<div class="status">開始: <span id="startTime">-</span></div>
-<div class="status">経過: <span id="elapsed">-</span></div>
-
-<h3>ログ</h3>
-<div id="logBox"></div>
+<h2>過去コメントテスト</h2>
+<label>Room ID: <input type="text" id="roomInput" value="490133"></label>
+<button id="loadComments">表示</button>
+<div id="comment"></div>
 
 <script>
-/* ================================
-   画面操作用のユーティリティ
-================================ */
-function logMessage(msg) {
-  const box = document.getElementById("logBox");
-  box.innerHTML += msg + "<br>";
-  box.scrollTop = box.scrollHeight;
+async function loadPastComments(roomId){
+    try{
+        const res = await fetch(`https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`);
+        const logs = await res.json();
+        console.log("取得ログ:", logs); // デバッグ用
+
+        const commentBox = document.getElementById("comment");
+        commentBox.innerHTML = "";
+
+        if(!Array.isArray(logs)){
+            commentBox.textContent = "コメントデータなし";
+            return;
+        }
+
+        logs.forEach(log => {
+            const div = document.createElement("div");
+            const img = document.createElement("img");
+            img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${log.avatar_id || 0}.png`;
+            const p = document.createElement("p");
+            p.textContent = `${log.name}：${log.comment}`;
+            div.appendChild(img);
+            div.appendChild(p);
+            commentBox.appendChild(div);
+        });
+    } catch(e){
+        console.error("過去コメント取得失敗", e);
+        document.getElementById("comment").textContent = "取得エラー";
+    }
 }
 
-function setStatus(text) {
-  document.getElementById("status").innerText = text;
-}
-
-function setRoomName(text) {
-  document.getElementById("roomName").innerText = text;
-}
-
-function setStartTime(text) {
-  document.getElementById("startTime").innerText = text;
-}
-
-function setElapsed(text) {
-  document.getElementById("elapsed").innerText = text;
-}
-
-function setHeartbeat(text) {
-  document.getElementById("hb").innerText = text;
-}
-
-/* ================================
-   接続開始
-================================ */
-function startConnection() {
-  const id = document.getElementById("roomId").value.trim();
-  if (!id) return alert("Room ID を入力してください");
-
-  setStatus("接続中…");
-  connectWebSocket(id);
-  fetchPastLogs(id);
-}
-
-/* ================================
-   過去ログ取得（/comment_log?room_id=）
-================================ */
-async function fetchPastLogs(id) {
-  logMessage("◆ 過去ログ取得中…");
-
-  try {
-    const res = await fetch(`/comment_log?room_id=${id}`);
-    const data = await res.json();
-    data.forEach(item => {
-      logMessage(`[過去] ${item.type}: ${item.message}`);
-    });
-  } catch (e) {
-    logMessage("過去ログ取得エラー: " + e);
-  }
-}
+document.getElementById("loadComments").onclick = ()=>{
+    const roomId = document.getElementById("roomInput").value.trim();
+    loadPastComments(roomId);
+};
 </script>
 
 </body>
