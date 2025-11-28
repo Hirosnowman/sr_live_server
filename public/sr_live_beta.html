@@ -298,7 +298,7 @@ function scheduleReconnect(){
 async function loadPastComments(roomId, showAll=false){
     if(!roomId) return;
     try{
-        const res = await fetch(`/get_comment_log?room_id=${encodeURIComponent(roomId)}`);
+        const res = await fetch(`/comment_log?room_id=${encodeURIComponent(roomId)}`);
         const logs = await res.json();
         if(!Array.isArray(logs)) {
             console.warn('過去コメントAPIが配列を返さない', logs);
@@ -330,7 +330,7 @@ async function checkMissingComments(){
     const roomId = roomInput.value.trim();
     if(!roomId) return;
     try{
-        const res = await fetch(`/get_comment_log?room_id=${encodeURIComponent(roomId)}`);
+        const res = await fetch(`/comment_log?room_id=${encodeURIComponent(roomId)}`);
         const logs = await res.json();
         if(!Array.isArray(logs)) return;
         const latest = logs.slice(-10);
