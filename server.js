@@ -1,5 +1,5 @@
 // ===============================
-// server.js（Node22 + ESM 完全対応）
+// server.js（Node22 + ESM 完全対応 / Render向け）
 // ===============================
 import express from "express";
 import fetch from "node-fetch";
@@ -15,15 +15,17 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// public フォルダの静的配信
+// public フォルダを配信
 app.use(express.static(path.join(__dirname, "public")));
 
-// SR HTML
+// デフォルト HTML
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public/sr_live.html"));
 });
 
-// broadcast_key取得 API
+// ===============================
+// ① broadcast_key 取得 API
+// ===============================
 app.get("/get_broadcast_key", async (req, res) => {
     const roomId = req.query.room_id;
     if (!roomId) return res.status(400).json({ error: "room_id required" });
@@ -41,28 +43,36 @@ app.get("/get_broadcast_key", async (req, res) => {
     }
 });
 
-// 過去コメントAPI
-app.get("/get_comment_log", async (req, res) => {
+// ===============================
+// ② 過去コメント取得 API
+// ===============================
+app.get("/past_comments", async (req, res) => {
     const roomId = req.query.room_id;
-    if(!roomId) return res.status(400).json({ error: "room_id required" });
+    if (!roomId) return res.status(400).json({ error: "room_id required" });
 
-    try{
-        const r = await fetch(`https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`);
+    try {
+        const url = `https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`;
+        const r = await fetch(url);
         const json = await r.json();
+
+        if (!json.comments) return res.status(404).json({ error: "no comments" });
+
         res.json(json);
-    } catch(e){
+
+    } catch (e) {
         res.status(500).json({ error: e.toString() });
     }
 });
 
-
-// HTTP Server
+// ===============================
+// HTTP Server 起動
+// ===============================
 const server = app.listen(PORT, () =>
     console.log(`Server running on ${PORT}`)
 );
 
 // ===============================
-// WebSocket Relay（ブラウザ → Node → Showroom）
+// WebSocket Relay（Browser → Node → Showroom）
 // ===============================
 const wss = new WebSocketServer({ server, path: "/ws" });
 
@@ -70,8 +80,12 @@ let showroomWS = null;
 let lastKey = null;
 let reconnectTimer = null;
 
-// Showroom へ接続開始
+// ===============================
+// ③ Showroom WS 接続
+// ===============================
 function connectShowroomWS(broadcastKey) {
+    if (!broadcastKey) return;
+
     if (showroomWS) {
         try { showroomWS.close(); } catch {}
     }
@@ -86,6 +100,7 @@ function connectShowroomWS(broadcastKey) {
         clearTimeout(reconnectTimer);
     });
 
+    // Showroom → Browser 全転送
     showroomWS.on("message", (msg) => {
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
@@ -94,6 +109,7 @@ function connectShowroomWS(broadcastKey) {
         });
     });
 
+    // 切断 → 3秒後に再接続
     showroomWS.on("close", () => {
         console.log("Showroom WS closed → reconnecting...");
         reconnectTimer = setTimeout(() => connectShowroomWS(lastKey), 3000);
@@ -104,7 +120,33 @@ function connectShowroomWS(broadcastKey) {
     });
 }
 
-// ブラウザ WS 接続
+// ===============================
+// ④ Showroom Heartbeat（PING）
+// ===============================
+setInterval(() => {
+    if (showroomWS && showroomWS.readyState === WebSocket.OPEN) {
+        try {
+            showroomWS.send("PING");
+        } catch (e) {
+            console.log("PING error:", e.toString());
+        }
+    }
+}, 10000);
+
+// ===============================
+// ⑤ ブラウザ Heartbeat（Node → Browser）
+// ===============================
+setInterval(() => {
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ hb: Date.now() }));
+        }
+    });
+}, 10000);
+
+// ===============================
+// ⑥ ブラウザ WS 接続処理
+// ===============================
 wss.on("connection", (socket) => {
     console.log("Browser connected");
 
