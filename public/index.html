@@ -206,12 +206,6 @@ async function connectRoom(roomId){
             reconnectTimeout = setTimeout(()=>connectRoom(roomId),5000);
         };
 
-        // UIリセット
-        document.getElementById("comment").innerHTML="";
-        document.getElementById("paidGift").innerHTML="";
-        document.getElementById("freeGift").innerHTML="";
-        Object.keys(paidGiftMap).forEach(k=>delete paidGiftMap[k]);
-        Object.keys(freeGiftMap).forEach(k=>delete freeGiftMap[k]);
 
     }catch(e){
         console.error(e);
