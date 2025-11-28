@@ -1,5 +1,5 @@
 // ===============================
-// server.js（Node22 + ESM 完全対応 / Render向け）
+// server.js（Node22 + ESM / Render用）
 // ===============================
 import express from "express";
 import fetch from "node-fetch";
@@ -46,7 +46,7 @@ app.get("/get_broadcast_key", async (req, res) => {
 // ===============================
 // ② 過去コメント取得 API
 // ===============================
-app.get("/past_comments", async (req, res) => {
+app.get("/comment_log", async (req, res) => {
     const roomId = req.query.room_id;
     if (!roomId) return res.status(400).json({ error: "room_id required" });
 
@@ -57,7 +57,8 @@ app.get("/past_comments", async (req, res) => {
 
         if (!json.comments) return res.status(404).json({ error: "no comments" });
 
-        res.json(json);
+        // ブラウザ側は配列を期待しているので comments のみ返す
+        res.json(json.comments);
 
     } catch (e) {
         res.status(500).json({ error: e.toString() });
