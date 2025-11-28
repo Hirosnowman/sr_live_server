@@ -32,16 +32,23 @@ app.get("/get_broadcast_key", async (req, res) => {
 
     try {
         const apiUrl = `https://www.showroom-live.com/api/live/live_info?room_id=${roomId}`;
-        const r = await fetch(apiUrl);
+        const r = await fetch(apiUrl, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+                "Referer": `https://www.showroom-live.com/room/profile?room_id=${roomId}`,
+                "Accept": "application/json, text/javascript, */*; q=0.01"
+            }
+        });
         const json = await r.json();
 
         if (json.bcsvr_key) res.json({ broadcast_key: json.bcsvr_key });
-        else res.status(404).json({ error: "broadcast_key not found" });
+        else res.status(404).json({ error: "broadcast_key not found", data: json });
 
     } catch (err) {
         res.status(500).json({ error: err.toString() });
     }
 });
+
 
 // ===============================
 // ② 過去コメント取得 API
