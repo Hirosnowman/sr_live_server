@@ -80,7 +80,6 @@ let commentSettings = {size:14, color:"#000000"};
 let paidSettings = {size:14, color:"#000000"};
 let freeSettings = {size:14, color:"#000000"};
 
-// WebSocketコメントバッファ（最新50件）
 let wsCommentBuffer = [];
 function pushWsComment(c){
     wsCommentBuffer.unshift({
@@ -92,13 +91,11 @@ function pushWsComment(c){
     if(wsCommentBuffer.length > 50) wsCommentBuffer.pop();
 }
 
-// 設定パネル
 const settingsPanel = document.getElementById("settingsPanel");
 document.getElementById("toggleSettings").onclick = ()=>{
     settingsPanel.style.display = (settingsPanel.style.display==="none")?"block":"none";
 };
 
-// 設定適用
 document.getElementById("applyDisplaySettings").onclick = () => {
     commentSettings.size = parseInt(document.getElementById("commentFontSize").value);
     commentSettings.color = document.getElementById("commentColor").value;
@@ -115,7 +112,6 @@ document.getElementById("applyDisplaySettings").onclick = () => {
     document.getElementById("freeGift").style.color = freeSettings.color;
 };
 
-// コメント表示
 function showComment(c) {
     const div = document.createElement("div");
     const img = document.createElement("img");
@@ -127,7 +123,6 @@ function showComment(c) {
     document.getElementById("comment").prepend(div);
 }
 
-// 補完コメント表示（★補完★）
 function showComplementComment(c){
     const div = document.createElement("div");
     const img = document.createElement("img");
@@ -140,7 +135,6 @@ function showComplementComment(c){
     document.getElementById("comment").prepend(div);
 }
 
-// ギフト表示（累積）
 const paidGiftMap = {};
 const freeGiftMap = {};
 function showGift(g) {
@@ -171,7 +165,6 @@ function showGift(g) {
     giftMap[key]={div:div, count:g.n, time:Date.now()};
 }
 
-// WebSocket 接続
 async function connectRoom(roomId) {
     try{
         const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
@@ -204,7 +197,6 @@ async function connectRoom(roomId) {
         };
         socket.onclose = ()=>{ document.getElementById("statusSpan").textContent="Status: 切断"; };
 
-        // リセット
         document.getElementById("comment").innerHTML="";
         document.getElementById("paidGift").innerHTML="";
         document.getElementById("freeGift").innerHTML="";
@@ -212,13 +204,31 @@ async function connectRoom(roomId) {
         Object.keys(paidGiftMap).forEach(k=>delete paidGiftMap[k]);
         Object.keys(freeGiftMap).forEach(k=>delete freeGiftMap[k]);
 
+        // 初回過去コメント読み込み
+        await loadPastComments(roomId);
+
     }catch(e){
         console.error(e);
         alert("broadcast_key取得中にエラー");
     }
 }
 
-// コメント補完処理
+async function loadPastComments(roomId){
+    try{
+        const res = await fetch(`https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`);
+        const logs = await res.json();
+        if(!Array.isArray(logs)) return;
+
+        logs.forEach(log=>{
+            const c = { ac: log.name, cm: log.comment, av: log.avatar_id || "0" };
+            showComment(c);
+            pushWsComment({ cid: log.comment_id, cm: log.comment, ac: log.name });
+        });
+    }catch(e){
+        console.error("過去コメント取得失敗", e);
+    }
+}
+
 async function checkMissingComments(roomId){
     try{
         const res = await fetch(`https://www.showroom-live.com/api/live/comment_log?room_id=${roomId}`);
@@ -246,19 +256,16 @@ async function checkMissingComments(roomId){
     }
 }
 
-// 10秒おきに補完チェック
 setInterval(()=>{
     const roomId = document.getElementById("roomInput").value.trim();
     if(roomId) checkMissingComments(roomId);
 }, 10000);
 
-// ルーム切替
 document.getElementById("switchRoom").onclick = ()=>{
     const newRoomId=document.getElementById("roomInput").value.trim();
     if(newRoomId) connectRoom(newRoomId);
 };
 
-// 経過時間更新
 setInterval(()=>{
     if(startedAt){
         const now=Date.now();
