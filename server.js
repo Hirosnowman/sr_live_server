@@ -68,6 +68,28 @@ app.get("/comment_log", async (req, res) => {
 });
 
 // ===============================
+// ③ ルームプロフィール取得 API (/room_profile)
+// ===============================
+app.get("/room_profile", async (req, res) => {
+    const roomId = req.query.room_id;
+    if (!roomId) return res.status(400).json({ error: "room_id required" });
+
+    try {
+        const url = `https://www.showroom-live.com/api/room/profile?room_id=${roomId}`;
+        const r = await fetch(url);
+        const json = await r.json();
+
+        if (json.current_live_started_at) {
+            res.json({ current_live_started_at: json.current_live_started_at });
+        } else {
+            res.status(404).json({ error: "current_live_started_at not found" });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.toString() });
+    }
+});
+
+// ===============================
 // HTTP Server 起動
 // ===============================
 const server = app.listen(PORT, () => {

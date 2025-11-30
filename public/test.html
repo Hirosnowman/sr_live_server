@@ -2,56 +2,50 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta charset="UTF-8">
-<title>過去コメント取得テスト</title>
+<title>Showroom 配信開始テスト</title>
 <style>
-body { font-family:sans-serif; background:#f0f0f0; padding:20px; }
-#comment { border:1px solid #ccc; background:#fff; padding:10px; max-height:600px; overflow-y:auto; }
-#comment div { display:flex; align-items:center; margin-bottom:5px; }
-#comment img { width:40px; height:40px; margin-right:5px; }
+body { font-family: sans-serif; padding: 20px; background:#f0f0f0; }
+input { padding: 5px; font-size: 1em; width: 120px; }
+button { padding: 5px 10px; font-size: 1em; }
+pre { background:#fff; padding:10px; border:1px solid #ccc; max-height:400px; overflow:auto; }
 </style>
 </head>
 <body>
 
-<h2>過去コメント取得テスト</h2>
-<label>Room ID: <input type="text" id="roomInput" value="198346"></label>
-<button id="loadPast">取得</button>
+<h2>Showroom 配信開始テスト</h2>
 
-<div id="comment"></div>
+<label>Room ID: <input type="text" id="roomIdInput" value="490133"></label>
+<button id="fetchBtn">取得</button>
+
+<h3>結果:</h3>
+<pre id="result">ここに結果が表示されます</pre>
 
 <script>
-function showComment(c){
-    const div = document.createElement("div");
-    const img = document.createElement("img");
-    img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.avatar_id || c.av || 0}.png`;
-    const p = document.createElement("p");
-    p.textContent = `${c.name || c.ac}：${c.comment || c.cm} ★補完★`;
-    div.appendChild(img);
-    div.appendChild(p);
-    document.getElementById("comment").prepend(div);
-}
+document.getElementById("fetchBtn").onclick = async () => {
+    const roomId = document.getElementById("roomIdInput").value.trim();
+    if(!roomId) return;
 
-document.getElementById("loadPast").onclick = async ()=>{
-    const roomId = document.getElementById("roomInput").value.trim();
-    if(!roomId) return alert("Room IDを入力してください");
+    const pre = document.getElementById("result");
+    pre.textContent = "取得中...";
 
-    document.getElementById("comment").innerHTML = "読み込み中...";
+    try {
+        const res = await fetch(`/room_profile?room_id=${roomId}`);
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        pre.textContent = JSON.stringify(data, null, 2);
 
-    try{
-        const res = await fetch(`/get_comment_log?room_id=${roomId}`);
-        const logs = await res.json();
-        document.getElementById("comment").innerHTML = "";
-        if(!Array.isArray(logs) || logs.length===0){
-            document.getElementById("comment").textContent = "コメントなし";
-            return;
+        if(data.current_live_started_at) {
+            const startedAt = new Date(data.current_live_started_at * 1000);
+            pre.textContent += `\n\n配信開始: ${startedAt.toLocaleString()}`;
+        } else {
+            pre.textContent += "\n\n未配信";
         }
-        // 最新10件を表示
-        logs.slice(-10).forEach(c=>showComment(c));
-    } catch(e){
-        console.error(e);
-        document.getElementById("comment").textContent = "取得エラー";
+
+    } catch(e) {
+        pre.textContent = "エラー: " + e.message;
     }
 };
 </script>
+
 </body>
 </html>
