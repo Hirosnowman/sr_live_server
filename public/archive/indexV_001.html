@@ -14,27 +14,26 @@ button { padding: 3px 8px; font-size: 1em; }
 .column { flex:1; border:1px solid #ccc; background:#fff; padding:5px; max-height:600px; overflow-y:auto; }
 
 /* コメント */
-#comment div { display:flex; flex-direction:row; align-items:center; margin-bottom:5px; background:#f9f9f9; padding:2px 5px; border-radius:5px; box-shadow:1px 1px 3px #aaa; }
+#comment div { display:flex; flex-direction:row; align-items:center; margin-bottom:5px; }
 #comment img { width:40px; height:40px; margin-right:5px; flex-shrink:0; }
-#comment .comment-wrapper { 
+#comment .comment-content { 
     display: flex; 
     flex-direction: column; 
     flex: 1; 
-    background: transparent; 
-    border: none; 
-    padding: 0; 
-    margin: 0; 
-    box-shadow: none; 
+    justify-content: space-between; 
+    min-height: 40px; 
 }
 #comment .comment-name { 
     color: #999; 
     font-size: 0.9em; 
     margin-bottom: 2px; 
+    align-self: flex-start; 
     text-align: left; 
 }
 #comment .comment-text { 
     margin-left: 0; 
-    margin-top: 0; 
+    align-self: flex-start; 
+    margin-top: auto; 
 }
 
 /* ギフト */
@@ -102,8 +101,9 @@ button { padding: 3px 8px; font-size: 1em; }
   <span id="hbSpan">HB: 10s</span>
   <span id="kpSpan">KeyPoll: 5s</span>
   <span id="roomNameSpan">Room: -</span>
-  <span id="currentLiveStartedAtSpan">未配信</span>
-  <span id="currentLiveElapsedSpan">経過時間: -</span>
+  <span id="startedSpan">開始: -</span>
+  <span id="elapsedSpan">経過: -</span>
+  <span id="currentLiveStartedAtSpan">配信開始: -</span>
 
   <button id="toggleSettings" style="position:absolute; right:10px; top:5px;">設定</button>
 
@@ -185,52 +185,27 @@ document.getElementById("applyDisplaySettings").onclick = () => {
 // コメント表示
 function showComment(c){
     const div = document.createElement("div");
-    div.style.display = "flex";
-    div.style.alignItems = "flex-start";   // 上揃え
-    div.style.marginBottom = "5px";
-    div.style.background = "#f9f9f9";
-    div.style.padding = "2px 5px";
-    div.style.borderRadius = "5px";
-    div.style.boxShadow = "1px 1px 3px #aaa";
-
-    // アバター画像
     const img = document.createElement("img");
     img.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${c.av}.png`;
-    img.style.width = "40px";
-    img.style.height = "40px";
-    img.style.marginRight = "5px";
-    img.style.flexShrink = "0";
-
-    // コメント名・本文ラッパー
-    const wrapperDiv = document.createElement("div");
-    wrapperDiv.style.display = "flex";
-    wrapperDiv.style.flexDirection = "column";
-    wrapperDiv.style.alignItems = "flex-start";  // 左寄せ
-    wrapperDiv.style.flex = "1";
-
+    
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "comment-content";
+    
     const nameSpan = document.createElement("span");
     nameSpan.className = "comment-name";
     nameSpan.textContent = c.ac;
-    nameSpan.style.color = "#999";
-    nameSpan.style.fontSize = "0.9em";
-    nameSpan.style.marginBottom = "2px";
-    nameSpan.style.textAlign = "left";
-
+    
     const textP = document.createElement("p");
     textP.className = "comment-text";
     textP.textContent = c.cm;
-    textP.style.margin = "0";
-    textP.style.textAlign = "left";
-
-    wrapperDiv.appendChild(nameSpan);
-    wrapperDiv.appendChild(textP);
-
+    
+    contentDiv.appendChild(nameSpan);
+    contentDiv.appendChild(textP);
+    
     div.appendChild(img);
-    div.appendChild(wrapperDiv);
-
+    div.appendChild(contentDiv);
     document.getElementById("comment").prepend(div);
 }
-
 
 // ギフト表示（累積）
 function showGift(g){
@@ -343,11 +318,6 @@ async function connectRoom(roomId){
     if(!roomId) return;
     if(reconnectTimeout) clearTimeout(reconnectTimeout);
 
-    // リセット
-    startedAt = null;
-    document.getElementById("currentLiveStartedAtSpan").textContent = "未配信";
-    document.getElementById("currentLiveElapsedSpan").textContent = "経過時間: -";
-
     try{
         setStatus("connecting");
         
@@ -356,20 +326,15 @@ async function connectRoom(roomId){
             const profileRes = await fetch(`/room_profile?room_id=${roomId}`);
             const profileJson = await profileRes.json();
             if(profileJson.current_live_started_at) {
-                startedAt = profileJson.current_live_started_at * 1000;
-                const startedAtDate = new Date(startedAt);
+                const startedAtDate = new Date(profileJson.current_live_started_at * 1000);
                 document.getElementById("currentLiveStartedAtSpan").textContent = 
                     `配信開始: ${startedAtDate.toLocaleString()}`;
             } else {
-                startedAt = null;
-                document.getElementById("currentLiveStartedAtSpan").textContent = "未配信";
-                document.getElementById("currentLiveElapsedSpan").textContent = "経過時間: -";
+                document.getElementById("currentLiveStartedAtSpan").textContent = "配信開始: -";
             }
         } catch(e) {
             console.warn("room_profile取得失敗:", e);
-            startedAt = null;
-            document.getElementById("currentLiveStartedAtSpan").textContent = "未配信";
-            document.getElementById("currentLiveElapsedSpan").textContent = "経過時間: -";
+            document.getElementById("currentLiveStartedAtSpan").textContent = "配信開始: -";
         }
         
         const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
@@ -396,13 +361,7 @@ async function connectRoom(roomId){
             const obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`,""));
             if(obj.cm) showComment(obj);
             else if(obj.g) showGift(obj);
-            // current_live_started_atが設定されていない場合のみ、WebSocketからのstarted_atを使用
-            if(!startedAt && obj.started_at) {
-                startedAt=obj.started_at*1000;
-                const startedAtDate = new Date(startedAt);
-                document.getElementById("currentLiveStartedAtSpan").textContent = 
-                    `配信開始: ${startedAtDate.toLocaleString()}`;
-            }
+            if(!startedAt && obj.started_at) startedAt=obj.started_at*1000;
             if(obj.main_name) document.getElementById("roomNameSpan").textContent="Room: "+obj.main_name;
         };
 
@@ -430,9 +389,8 @@ setInterval(()=>{
         const h=Math.floor(diff/3600);
         const m=Math.floor((diff%3600)/60);
         const s=diff%60;
-        document.getElementById("currentLiveElapsedSpan").textContent=`経過時間: ${h}時間 ${m}分 ${s}秒`;
-    } else {
-        document.getElementById("currentLiveElapsedSpan").textContent = "経過時間: -";
+        document.getElementById("startedSpan").textContent="開始: "+new Date(startedAt).toLocaleString();
+        document.getElementById("elapsedSpan").textContent=`経過: ${h}時間 ${m}分 ${s}秒`;
     }
 },1000);
 
