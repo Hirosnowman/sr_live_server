@@ -79,15 +79,38 @@ app.get("/room_profile", async (req, res) => {
         const r = await fetch(url);
         const json = await r.json();
 
+        const responseData = {};
         if (json.current_live_started_at) {
-            res.json({ current_live_started_at: json.current_live_started_at });
+            responseData.current_live_started_at = json.current_live_started_at;
+        }
+        if (json.room_name) {
+            responseData.room_name = json.room_name;
+        }
+
+        if (Object.keys(responseData).length > 0) {
+            res.json(responseData);
         } else {
-            res.status(404).json({ error: "current_live_started_at not found" });
+            res.status(404).json({ error: "data not found" });
         }
     } catch (e) {
         res.status(500).json({ error: e.toString() });
     }
 });
+
+app.get("/gift_list", async (req, res) => {
+    const roomId = req.query.room_id;
+    if (!roomId) return res.status(400).json({ error: "room_id required" });
+
+    try {
+        const url = `https://www.showroom-live.com/api/live/gift_list?room_id=${roomId}`;
+        const r = await fetch(url);
+        const json = await r.json();
+        res.json(json);
+    } catch (e) {
+        res.status(500).json({ error: e.toString() });
+    }
+});
+
 
 // ===============================
 // HTTP Server 起動
@@ -112,7 +135,7 @@ function connectShowroomWS(broadcastKey) {
     if (!broadcastKey) return;
 
     if (showroomWS) {
-        try { showroomWS.close(); } catch {}
+        try { showroomWS.close(); } catch { }
     }
 
     const url = `wss://bcsv-showroom1.showroom-cdn.com/?bcsvr_key=${broadcastKey}`;
