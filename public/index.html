@@ -5,24 +5,32 @@
     <meta charset="utf-8">
     <title>SR コメント・ギフト 3カラム + 設定パネル</title>
     <style>
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: sans-serif;
             margin: 0;
             background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
         }
 
         header {
-            position: fixed;
-            top: 0;
-            left: 0;
+            /* position: fixed; removed */
             width: 100%;
             background: #ddd;
             padding: 5px 10px;
             z-index: 100;
             display: flex;
             flex-direction: column;
-            /* 縦並びに変更 */
             gap: 5px;
+            flex-shrink: 0;
+            /* Prevent shrinking */
+            box-sizing: border-box;
         }
 
         .header-row {
@@ -46,9 +54,14 @@
         .container {
             display: flex;
             gap: 10px;
-            margin-top: 80px;
-            /* ヘッダーが高くなったので調整 */
+            /* margin-top: 80px; removed */
             padding: 10px;
+            flex: 1;
+            /* Fill remaining space */
+            overflow: hidden;
+            /* Prevent container itself from scrolling */
+            min-height: 0;
+            /* Important for nested flex scrolling */
         }
 
         /* 各カラム */
@@ -56,9 +69,37 @@
             flex: 1;
             border: 1px solid #ccc;
             background: #fff;
-            padding: 5px;
-            height: 600px;
+            /* height: 600px; removed */
+            height: 100%;
+            /* Fill container */
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            min-width: 0;
+            /* Prevent flex item overflow */
+        }
+
+        /* コンテンツエリア（スクロール対象） */
+        #comment,
+        #freeStar,
+        #freeOther,
+        #paidGift {
+            flex: 1;
             overflow-y: auto;
+            padding: 5px;
+        }
+
+        .sticky-header {
+            background: #fff;
+            z-index: 10;
+            padding: 5px;
+            border-bottom: 2px solid #eee;
+            flex-shrink: 0;
+        }
+
+        .sticky-header h2 {
+            margin: 0;
+            text-align: center;
         }
 
         /* コメント */
@@ -187,18 +228,14 @@
         /* 設定パネル */
         #settingsPanel {
             display: none;
-            position: absolute;
-            top: 100%;
-            right: 0;
             background: #fff;
             border: 1px solid #ccc;
-            padding: 15px;
-            z-index: 1000;
-            font-size: 1em;
-            width: 250px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            padding: 0;
+            z-index: 99999 !important;
             border-radius: 8px;
-            margin-top: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         #settingsPanel div {
@@ -278,6 +315,403 @@
             opacity: 0.9;
         }
 
+
+        /* コメント履歴モーダル */
+        #commentHistoryModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 20px;
+            z-index: 2100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            width: 500px;
+            max-height: 70vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            flex-direction: column;
+        }
+
+
+        #commentHistoryModal.show {
+            display: flex;
+        }
+
+        #commentHistoryModal h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.3em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #commentHistoryModal .close-btn {
+            cursor: pointer;
+            font-size: 1.5em;
+            color: #999;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #commentHistoryModal .close-btn:hover {
+            color: #333;
+        }
+
+        #commentHistoryList {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        #commentHistoryList .history-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+        }
+
+        #commentHistoryList .history-time {
+            font-size: 0.85em;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        #commentHistoryList .history-text {
+            color: #333;
+        }
+
+        /* ギフト履歴モーダル */
+        #giftHistoryModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        #giftHistoryModal.show {
+            display: block;
+        }
+
+        #giftHistoryModal h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        .gift-history-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+        }
+
+        .gift-history-time {
+            font-size: 0.85em;
+            color: #999;
+            min-width: 80px;
+        }
+
+        .gift-history-gift {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            margin-left: 10px;
+        }
+
+        .gift-history-gift img {
+            width: 30px;
+            height: 30px;
+            margin-right: 8px;
+        }
+
+        .gift-history-gift-name {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .gift-history-count {
+            color: #666;
+        }
+
+        /* カラムリサイザー */
+        .col-resizer {
+            width: 5px;
+            background: #e0e0e0;
+            cursor: col-resize;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .col-resizer:hover {
+            background: #d0d0d0;
+        }
+
+        /* リサイザー */
+        #resizer {
+            height: 8px;
+            background: #e0e0e0;
+            cursor: row-resize;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-top: 1px solid #ccc;
+            border-bottom: 1px solid #ccc;
+        }
+
+        #resizer:hover {
+            background: #d0d0d0;
+        }
+
+        #resizer::after {
+            content: "....";
+            color: #999;
+            letter-spacing: 2px;
+            font-size: 12px;
+            line-height: 0;
+            margin-top: -8px;
+        }
+
+        /* 高額ギフト表示エリア */
+        #highValueGiftContainer {
+            /* position: fixed; removed */
+            /* bottom: 10px; removed */
+            /* left: 10px; removed */
+            /* max-width: calc(100% - 20px); removed */
+            width: 100%;
+            height: 150px;
+            /* Default height */
+            overflow-x: auto;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            /* border-radius: 8px; removed */
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 99;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+
+        .high-value-gift-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 3px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            min-width: 100px;
+        }
+
+        /* アバター画像のジャンプアニメーション */
+        @keyframes avatarJump {
+            0% {
+                transform: translateY(0);
+            }
+
+            30% {
+                transform: translateY(-15px);
+            }
+
+            60% {
+                transform: translateY(-5px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        .high-value-gift-item img.avatar.jump {
+            animation: avatarJump 0.5s ease-in-out;
+        }
+
+        /* 放物線アニメーション（順位変動時） */
+        @keyframes parabolicMove {
+            0% {
+                transform: translate(var(--move-distance), 0);
+            }
+
+            50% {
+                transform: translate(calc(var(--move-distance) / 2), -40px);
+            }
+
+            100% {
+                transform: translate(0, 0);
+            }
+        }
+
+        .high-value-gift-item.moving {
+            animation: parabolicMove 0.8s cubic-bezier(0.45, 0, 0.55, 1);
+            z-index: 100;
+            position: relative;
+        }
+
+        /* 他のアイテムの滑らかな移動（JSで制御するためCSS transitionは削除またはJSで上書き） */
+        .high-value-gift-item {
+            /* transitionはJSで動的に適用します */
+        }
+
+        /* 上段：アバターとギフトアイコン */
+        .high-value-gift-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 銀色枠（10000pt以上） */
+        .high-value-gift-item.silver {
+            border-color: #C0C0C0;
+            box-shadow: 0 2px 8px rgba(192, 192, 192, 0.5);
+        }
+
+        /* ゴールド枠（30000pt以上） */
+        .high-value-gift-item.gold {
+            border-color: #FFD700;
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.6);
+        }
+
+        .high-value-gift-item img.avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .high-value-gift-item img.gift {
+            width: 35px;
+            height: 35px;
+        }
+
+        .high-value-gift-item .count {
+            font-weight: bold;
+            color: #d00;
+            font-size: 1.1em;
+            text-align: center;
+        }
+
+        /* 高額ギフト情報ポップアップ */
+        .high-value-popup {
+            position: fixed;
+            background: white;
+            border: 3px solid #4CAF50;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 10000;
+            min-width: 250px;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+        }
+
+        .high-value-popup.show {
+            display: flex;
+        }
+
+        .high-value-popup-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            flex-shrink: 0;
+        }
+
+        .high-value-popup-header img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+        }
+
+        .high-value-popup-user {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .high-value-popup-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            max-height: calc(80vh - 120px);
+            padding-right: 5px;
+        }
+
+        .high-value-popup-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .high-value-popup-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .high-value-popup-value {
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        .high-value-popup-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 1.5em;
+            color: #999;
+            font-weight: bold;
+        }
+
+        .high-value-popup-close:hover {
+            color: #333;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         #alarmModal h3 {
             margin-top: 0;
         }
@@ -344,6 +778,18 @@
             background: #ffcccc;
         }
 
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .comment-header-buttons {
+            display: flex;
+            align-items: center;
+        }
+
         #alarmModal .modal-buttons {
             display: flex;
             justify-content: space-between;
@@ -382,6 +828,158 @@
 <body>
 
     <div id="overlay"></div>
+
+    <!-- 設定パネル（bodyの直下に配置） -->
+    <div id="settingsPanel"
+        style="top: 50%; left: 50%; transform: translate(-50%, -50%); position: fixed; margin: 0; min-width: 300px; z-index: 99999 !important;">
+        <div id="settingsHeader"
+            style="background: #eee; padding: 5px 10px; cursor: move; border-bottom: 1px solid #ccc; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: bold;">設定</span>
+            <button id="closeSettings"
+                style="border: none; background: none; cursor: pointer; font-size: 1.2em;">✕</button>
+        </div>
+        <div style="padding: 15px;">
+            <div><strong>コメント:</strong> 文字サイズ <input type="number" id="commentFontSize" value="14" min="10" max="30"> px
+                色 <input type="color" id="commentColor" value="#000000"></div>
+            <div style="margin-top: 10px;"><label><input type="checkbox" id="testModeCheckbox">
+                    テストモード（通信停止ボタン表示）</label></div>
+
+            <!-- テスト機能ボタン（テストモード時のみ表示） -->
+            <div id="testButtons"
+                style="margin-top: 10px; display: none; border-top: 1px solid #eee; padding-top: 10px;">
+                <div style="margin-bottom:5px;">
+                    <button id="testCommentBtn" style="width:100%; margin-bottom:5px;">テストコメント</button>
+                    <button id="testGiftBtn" style="width:100%;">テストギフト（一括）</button>
+                </div>
+
+                <!-- テストユーザー選択 -->
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                    <div style="font-size: 0.9em; margin-bottom: 5px; font-weight: bold;">テストユーザー選択:</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+                        <button class="test-user-btn" data-user-id="1001" data-user-name="テストA"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">A</button>
+                        <button class="test-user-btn" data-user-id="1002" data-user-name="テストB"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">B</button>
+                        <button class="test-user-btn" data-user-id="1003" data-user-name="テストC"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">C</button>
+                        <button class="test-user-btn" data-user-id="1004" data-user-name="テストD"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">D</button>
+                        <button class="test-user-btn" data-user-id="1005" data-user-name="テストE"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">E</button>
+                        <button class="test-user-btn" data-user-id="1006" data-user-name="テストF"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">F</button>
+                    </div>
+                </div>
+
+                <!-- 個数選択ボタン -->
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                    <div style="font-size: 0.9em; margin-bottom: 5px; font-weight: bold;">個数選択:</div>
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px;">
+                        <button class="test-count-btn" data-count="1"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×1</button>
+                        <button class="test-count-btn" data-count="2"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×2</button>
+                        <button class="test-count-btn" data-count="3"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×3</button>
+                        <button class="test-count-btn" data-count="4"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×4</button>
+                        <button class="test-count-btn" data-count="5"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×5</button>
+                        <button class="test-count-btn" data-count="6"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×6</button>
+                        <button class="test-count-btn" data-count="7"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×7</button>
+                        <button class="test-count-btn" data-count="8"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×8</button>
+                        <button class="test-count-btn" data-count="9"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×9</button>
+                        <button class="test-count-btn" data-count="10"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×10</button>
+                        <button class="test-count-btn" data-count="100"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×100</button>
+                        <button class="test-count-btn" data-count="1000"
+                            style="padding: 5px; font-size: 0.8em; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: white;">×1000</button>
+                    </div>
+                </div>
+
+                <!-- テストギフトアイコン -->
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                    <div style="font-size: 0.9em; margin-bottom: 5px; font-weight: bold;">テストギフト:</div>
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
+                        <img src="https://static.showroom-live.com/image/gift/3000421_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3000421" data-type="2" title="無料ギフト(星)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3000844_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3000844" data-type="2" title="無料ギフト(その他)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3_s.png?v=7" class="test-gift-icon-new"
+                            data-id="3" data-type="1" title="有料ギフト(3)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/800003_s.png?v=7"
+                            class="test-gift-icon-new" data-id="800003" data-type="1" title="有料ギフト(800003)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/21_s.png?v=7" class="test-gift-icon-new"
+                            data-id="21" data-type="1" title="有料ギフト(21)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3000349_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3000349" data-type="1" title="有料ギフト(3000349)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/1601_s.png?v=7" class="test-gift-icon-new"
+                            data-id="1601" data-type="2" title="ギフトID 1601"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3000752_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3000752" data-type="2" title="無料ギフト(3000752)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/800093_s.png?v=7"
+                            class="test-gift-icon-new" data-id="800093" data-type="2" title="ギフトID 800093"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/18_s.png?v=7" class="test-gift-icon-new"
+                            data-id="18" data-type="1" title="有料ギフト(18)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/800072_s.png?v=7"
+                            class="test-gift-icon-new" data-id="800072" data-type="1" title="有料ギフト(800072)"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001128_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001128" data-type="2" title="ギフトID 3001128"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001129_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001129" data-type="2" title="ギフトID 3001129"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001130_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001130" data-type="2" title="ギフトID 3001130"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001131_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001131" data-type="2" title="ギフトID 3001131"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001132_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001132" data-type="2" title="ギフトID 3001132"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001133_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001133" data-type="2" title="ギフトID 3001133"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001134_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001134" data-type="2" title="ギフトID 3001134"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001135_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001135" data-type="2" title="ギフトID 3001135"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001136_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001136" data-type="2" title="ギフトID 3001136"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001137_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001137" data-type="2" title="ギフトID 3001137"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                        <img src="https://static.showroom-live.com/image/gift/3001138_s.png?v=7"
+                            class="test-gift-icon-new" data-id="3001138" data-type="2" title="ギフトID 3001138"
+                            style="width:30px; height:30px; cursor:pointer; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; text-align: right;">
+                <button id="applyDisplaySettings">適用</button>
+            </div>
+        </div>
+    </div>
     <div id="alarmModal">
         <h3>アラーム設定</h3>
         <input type="text" id="alarmTimeInput" placeholder="--:--" readonly>
@@ -417,6 +1015,14 @@
         <button id="notificationOkBtn">OK</button>
     </div>
 
+    <div id="commentHistoryModal">
+        <h3>
+            <span id="commentHistoryUser"></span>のコメント履歴
+            <button class="close-btn" id="closeCommentHistory">×</button>
+        </h3>
+        <div id="commentHistoryList"></div>
+    </div>
+
     <header>
         <div class="header-row">
             <label>Room ID: <input type="text" id="roomInput" placeholder="例: 490133"></label>
@@ -432,41 +1038,96 @@
             <span id="clockSpan" style="font-weight:bold; font-size:1.1em;">--:--:--</span>
             <button id="alarmSetBtn">アラームセット</button>
             <span id="alarmStatusSpan" style="color: #d00; display:none;">🔔 <span id="alarmTimeDisplay"></span></span>
+            <button id="pauseBtn" style="background:#ff9800; color:white; margin-left:10px; display:none;">⏸
+                通信停止</button>
         </div>
     </header>
 
     <div class="container">
         <div class="column">
-            <div style="display:flex; justify-content:center; align-items:center; position:relative;">
-                <h2>コメント</h2>
-                <button id="toggleSettings" style="position:absolute; right:0; font-size:0.8em;">設定</button>
-
-                <div id="settingsPanel">
-                    <div><strong>コメント:</strong> 文字サイズ <input type="number" id="commentFontSize" value="14" min="10"
-                            max="30"> px
-                        色 <input type="color" id="commentColor" value="#000000"></div>
-                    <button id="applyDisplaySettings">適用</button>
+            <div class="sticky-header"
+                style="display:flex; justify-content:space-between; align-items:center; padding:5px 10px;">
+                <button id="checkCommentBtn"
+                    style="font-size:0.8em; background:#4CAF50; color:white; padding:5px 10px; border:none; border-radius:3px; cursor:pointer;">コメ抜チェック</button>
+                <h2 style="margin:0; font-size:1.2em;">コメント</h2>
+                <div style="display:flex; gap:5px;">
+                    <button id="scrollTopBtn" style="font-size:0.8em; cursor:pointer;">先頭へ</button>
+                    <button id="toggleSettings" style="font-size:0.8em; cursor:pointer;">設定</button>
                 </div>
             </div>
             <div id="comment"></div>
         </div>
 
+        <div class="col-resizer"></div>
+
+        <!-- ギフト履歴モーダル -->
+        <div id="giftHistoryModal" class="modal">
+            <h3>ギフト履歴 - <span id="giftHistoryUser"></span></h3>
+            <button id="closeGiftHistory" style="position:absolute; top:10px; right:10px; cursor:pointer;">✕</button>
+            <div id="giftHistoryList" style="max-height:400px; overflow-y:auto; margin-top:10px;"></div>
+        </div>
+
+
+
         <div class="column">
-            <h2>無料ギフト ⭐</h2>
+            <div class="sticky-header">
+                <h2>無料ギフト ⭐</h2>
+            </div>
             <div id="freeStar"></div>
         </div>
 
+        <div class="col-resizer"></div>
+
         <div class="column">
-            <h2>無料ギフト（その他）</h2>
+            <div class="sticky-header">
+                <h2>無料ギフト（その他）</h2>
+            </div>
             <div id="freeOther"></div>
         </div>
 
+        <div class="col-resizer"></div>
+
         <div class="column">
-            <h2>有料ギフト</h2>
+            <div class="sticky-header">
+                <h2>有料ギフト</h2>
+            </div>
             <div id="paidGift"></div>
         </div>
     </div>
 
+
+    <div id="resizer"></div>
+
+    <!-- 高額ギフト表示エリア -->
+    <div id="highValueGiftContainer"></div>
+
+    <!-- 高額ギフト情報ポップアップ -->
+    <div id="highValuePopup" class="high-value-popup">
+        <span class="high-value-popup-close"
+            onclick="document.getElementById('highValuePopup').classList.remove('show')">×</span>
+        <div class="high-value-popup-header">
+            <img id="popupAvatar" src="" alt="avatar">
+            <div id="popupUserName" class="high-value-popup-user"></div>
+        </div>
+        <div class="high-value-popup-content">
+            <div class="high-value-popup-row">
+                <span class="high-value-popup-label">ギフト:</span>
+                <span id="popupGiftName" class="high-value-popup-value"></span>
+            </div>
+            <div class="high-value-popup-row">
+                <span class="high-value-popup-label">累積個数:</span>
+                <span id="popupTotalCount" class="high-value-popup-value"></span>
+            </div>
+            <div class="high-value-popup-row">
+                <span class="high-value-popup-label">基本金額:</span>
+                <span id="popupBasePrice" class="high-value-popup-value"></span>
+            </div>
+            <div class="high-value-popup-row">
+                <span class="high-value-popup-label">累積ポイント:</span>
+                <span id="popupTotalPoints" class="high-value-popup-value"></span>
+            </div>
+        </div>
+    </div>
 
     <script>
         let broadcastKey = null;
@@ -474,6 +1135,9 @@
         let startedAt = null;
         let hbInterval = null;
         let reconnectTimeout = null;
+
+        // 高額ギフトユーザー集計 { userId: { totalPoints, totalCount, bestGift: {id, point, name}, gifts: { giftId: count } } }
+        const userHighValueData = {};
 
         // アラーム用
         let alarmTime = null; // "HH:MM" string
@@ -622,13 +1286,79 @@
         // ギフトマスターデータ (ID -> {name, point, free})
         const giftMasterData = {};
 
+        // コメント履歴管理 (user_id -> [{time, name, text}, ...])
+        const commentHistory = {};
+
+        // ギフト履歴管理 (user_id -> [{time, name, giftId, giftName, count, type}, ...])
+        const giftHistory = {};
+
+        // コメント重複チェック用 (comment_idまたはハッシュ値を保存)
+        const receivedComments = new Set();
+        let commentLogInterval = null;
+        let currentRoomId = null;
+        let isPaused = false; // 通信一時停止フラグ
+
+
+
 
         // 設定パネル表示
         const settingsPanel = document.getElementById("settingsPanel");
 
+        // 設定パネルの位置を画面内に調整する関数
+        function adjustSettingsPanelPosition() {
+            // transformが設定されている場合は何もしない（初期状態）
+            if (settingsPanel.style.transform && settingsPanel.style.transform !== "none") {
+                return;
+            }
+
+            const currentLeft = parseFloat(settingsPanel.style.left) || 0;
+            const currentTop = parseFloat(settingsPanel.style.top) || 0;
+            const panelWidth = settingsPanel.offsetWidth;
+            const panelHeight = settingsPanel.offsetHeight;
+
+            const maxLeft = window.innerWidth - panelWidth;
+            const maxTop = window.innerHeight - panelHeight;
+
+            let newLeft = Math.max(0, Math.min(currentLeft, maxLeft));
+            let newTop = Math.max(0, Math.min(currentTop, maxTop));
+
+            settingsPanel.style.left = `${newLeft}px`;
+            settingsPanel.style.top = `${newTop}px`;
+        }
+
         document.getElementById("toggleSettings").onclick = () => {
-            settingsPanel.style.display = (settingsPanel.style.display === "none") ? "block" : "none";
+            if (settingsPanel.style.display === "none" || settingsPanel.style.display === "") {
+                // まず表示
+                settingsPanel.style.display = "block";
+
+                // リフローを強制
+                void settingsPanel.offsetHeight;
+
+                // パネルのサイズを取得
+                const panelWidth = settingsPanel.offsetWidth;
+                const panelHeight = settingsPanel.offsetHeight;
+
+                // 中央に配置（transformは使わない）
+                const centerLeft = Math.max(0, (window.innerWidth - panelWidth) / 2);
+                const centerTop = Math.max(0, (window.innerHeight - panelHeight) / 2);
+
+                settingsPanel.style.transform = "none";
+                settingsPanel.style.left = `${centerLeft}px`;
+                settingsPanel.style.top = `${centerTop}px`;
+            } else {
+                settingsPanel.style.display = "none";
+            }
         };
+
+        document.getElementById("closeSettings").onclick = (e) => {
+            e.stopPropagation(); // イベントのバブリングを防ぐ
+            settingsPanel.style.display = "none";
+        };
+
+        // ✕ボタンのmousedownイベントでもバブリングを防ぐ
+        document.getElementById("closeSettings").addEventListener("mousedown", (e) => {
+            e.stopPropagation(); // ドラッグが開始されるのを防ぐ
+        });
 
         // 設定適用
         document.getElementById("applyDisplaySettings").onclick = () => {
@@ -638,12 +1368,287 @@
             document.getElementById("comment").style.fontSize = commentSettings.size + "px";
             document.getElementById("comment").style.color = commentSettings.color;
 
+            // テストモード（通信停止ボタン表示）切り替え
+            const isTestMode = document.getElementById("testModeCheckbox").checked;
+            document.getElementById("pauseBtn").style.display = isTestMode ? "inline-block" : "none";
+            document.getElementById("testButtons").style.display = isTestMode ? "block" : "none";
+
             // パネルを閉じる
             settingsPanel.style.display = "none";
         };
 
+        // テストユーザー選択機能
+        let selectedTestUser = { u: 1001, ac: "テストA", av: 1 };
+
+        document.querySelectorAll(".test-user-btn").forEach(btn => {
+            btn.onclick = () => {
+                // 全てのボタンから選択状態を解除
+                document.querySelectorAll(".test-user-btn").forEach(b => {
+                    b.style.background = "white";
+                    b.style.borderColor = "#ddd";
+                    b.style.color = "#333";
+                    b.style.fontWeight = "normal";
+                });
+
+                // クリックされたボタンを選択状態に
+                btn.style.background = "#4CAF50";
+                btn.style.borderColor = "#4CAF50";
+                btn.style.color = "white";
+                btn.style.fontWeight = "bold";
+
+                // 選択されたユーザー情報を保存
+                selectedTestUser = {
+                    u: parseInt(btn.getAttribute("data-user-id")),
+                    ac: btn.getAttribute("data-user-name"),
+                    av: parseInt(btn.getAttribute("data-user-id")) % 100 // アバターIDは適当に設定
+                };
+            };
+        });
+
+        // 初期選択（ユーザーA）
+        document.querySelector(".test-user-btn[data-user-id='1001']").click();
+
+        // テストコメント機能
+        document.getElementById("testCommentBtn").onclick = () => {
+            const testComment = {
+                u: selectedTestUser.u,
+                ac: selectedTestUser.ac,
+                cm: "テストコメント " + new Date().toLocaleTimeString(),
+                av: selectedTestUser.av,
+                created_at: Math.floor(Date.now() / 1000)
+            };
+            showComment(testComment);
+        };
+
+        // テストギフト機能
+        document.getElementById("testGiftBtn").onclick = () => {
+            const now = Math.floor(Date.now() / 1000);
+
+            // 無料ギフト ギフトID3000421×100個
+            showGift({ ...selectedTestUser, g: 3000421, n: 100, created_at: now, gt: 2 });
+
+            // 無料ギフトその他 ギフトID3000844×10個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 3000844, n: 10, created_at: now, gt: 2 });
+            }, 100);
+
+            // 有料ギフト ギフトID 3×10個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 3, n: 10, created_at: now, gt: 1 });
+            }, 200);
+
+            // 有料ギフト ギフトID 800003×1個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 800003, n: 1, created_at: now, gt: 1 });
+            }, 300);
+
+            // 有料ギフト ギフトID 21×1個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 21, n: 1, created_at: now, gt: 1 });
+            }, 400);
+
+            // 有料ギフト ギフトID 3000349×1個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 3000349, n: 1, created_at: now, gt: 1 });
+            }, 500);
+
+            // 無料ギフトその他 ギフトID 3000752×1個
+            setTimeout(() => {
+                showGift({ ...selectedTestUser, g: 3000752, n: 1, created_at: now, gt: 2 });
+            }, 600);
+
+            // 無料ギフトその他 追加テストギフト ×10個ずつ
+            const freeGiftIds = [3000669, 3000670, 3000671, 3000672, 3000673, 3000841, 3000842, 3000843, 3000844, 3000845];
+            freeGiftIds.forEach((giftId, index) => {
+                setTimeout(() => {
+                    showGift({ ...selectedTestUser, g: giftId, n: 10, created_at: now, gt: 2 });
+                }, 700 + (index * 100));
+            });
+        };
+
+        // 個数選択ボタンとギフトアイコンの新しいシステム
+        let selectedTestCount = 1; // デフォルトは×1
+
+        // 個数選択ボタンのイベントハンドラー
+        document.querySelectorAll(".test-count-btn").forEach(btn => {
+            btn.onclick = () => {
+                // 全てのボタンから選択状態を解除
+                document.querySelectorAll(".test-count-btn").forEach(b => {
+                    b.style.background = "white";
+                    b.style.borderColor = "#ddd";
+                    b.style.color = "#333";
+                    b.style.fontWeight = "normal";
+                });
+
+                // クリックされたボタンを選択状態に
+                btn.style.background = "#4CAF50";
+                btn.style.borderColor = "#4CAF50";
+                btn.style.color = "white";
+                btn.style.fontWeight = "bold";
+
+                // 選択された個数を保存
+                selectedTestCount = parseInt(btn.getAttribute("data-count"));
+            };
+        });
+
+        // 初期選択（×1）
+        document.querySelector(".test-count-btn[data-count='1']").click();
+
+        // 新しいギフトアイコンのイベントハンドラー
+        document.querySelectorAll(".test-gift-icon-new").forEach(icon => {
+            icon.onclick = () => {
+                const giftId = parseInt(icon.getAttribute("data-id"));
+                const type = parseInt(icon.getAttribute("data-type"));
+                const now = Math.floor(Date.now() / 1000);
+
+                showGift({ ...selectedTestUser, g: giftId, n: selectedTestCount, created_at: now, gt: type });
+            };
+        });
+
+        // 個別テストギフトボタン（古いシステム、互換性のため残す）
+        document.querySelectorAll(".test-gift-icon").forEach(icon => {
+            icon.onclick = () => {
+                const giftId = parseInt(icon.getAttribute("data-id"));
+                const count = parseInt(icon.getAttribute("data-count"));
+                const type = parseInt(icon.getAttribute("data-type"));
+                const now = Math.floor(Date.now() / 1000);
+
+                showGift({ ...selectedTestUser, g: giftId, n: count, created_at: now, gt: type }, type);
+            };
+        });
+
+        // 通信一時停止/再開ボタン
+        document.getElementById("pauseBtn").onclick = () => {
+            isPaused = !isPaused;
+            const btn = document.getElementById("pauseBtn");
+            if (isPaused) {
+                btn.textContent = "▶ 通信再開";
+                btn.style.background = "#4CAF50";
+            } else {
+                btn.textContent = "⏸ 通信停止";
+                btn.style.background = "#ff9800";
+            }
+        };
+
+        // コメ抜チェックボタン
+        document.getElementById("checkCommentBtn").onclick = async () => {
+            if (!currentRoomId) {
+                alert("ルームに接続してください");
+                return;
+            }
+
+            const btn = document.getElementById("checkCommentBtn");
+            btn.disabled = true;
+            btn.textContent = "チェック中...";
+
+            try {
+                const res = await fetch(`/comment_log?room_id=${currentRoomId}`);
+                const json = await res.json();
+
+                if (json && json.comment_log && Array.isArray(json.comment_log)) {
+                    const comments = json.comment_log.slice().reverse();
+                    let restoredCount = 0;
+
+                    comments.forEach(comment => {
+                        if (comment.user_id === 0) return;
+
+                        const isDuplicate = Array.from(receivedComments).some(hash => {
+                            const firstUnderscore = hash.indexOf('_');
+                            const lastUnderscore = hash.lastIndexOf('_');
+
+                            if (firstUnderscore === -1 || lastUnderscore === -1 || firstUnderscore === lastUnderscore) {
+                                return false;
+                            }
+
+                            const storedUserId = hash.substring(0, firstUnderscore);
+                            const storedTimestamp = hash.substring(lastUnderscore + 1);
+                            const storedComment = hash.substring(firstUnderscore + 1, lastUnderscore);
+
+                            if (storedUserId == comment.user_id && storedComment === comment.comment) {
+                                const timeDiff = Math.abs(parseInt(storedTimestamp) - comment.created_at);
+                                return timeDiff <= 5;
+                            }
+                            return false;
+                        });
+
+                        if (!isDuplicate) {
+                            const commentHash = `${comment.user_id}_${comment.comment}_${comment.created_at}`;
+                            receivedComments.add(commentHash);
+
+                            const commentObj = {
+                                u: comment.user_id,
+                                ac: comment.name,
+                                cm: comment.comment,
+                                av: comment.avatar_id,
+                                created_at: comment.created_at,
+                                fromPolling: true
+                            };
+                            showComment(commentObj);
+                            restoredCount++;
+                        }
+                    });
+
+                    btn.textContent = `${restoredCount}件復元`;
+                    setTimeout(() => {
+                        btn.textContent = "コメ抜チェック";
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    btn.textContent = "エラー";
+                    setTimeout(() => {
+                        btn.textContent = "コメ抜チェック";
+                        btn.disabled = false;
+                    }, 2000);
+                }
+            } catch (e) {
+                console.error("コメ抜チェックエラー:", e);
+                btn.textContent = "エラー";
+                setTimeout(() => {
+                    btn.textContent = "コメ抜チェック";
+                    btn.disabled = false;
+                }, 2000);
+            }
+        };
+
+        // 先頭へボタン
+        document.getElementById("scrollTopBtn").onclick = () => {
+            const commentDiv = document.getElementById("comment");
+            commentDiv.scrollTop = 0;
+        };
+
+
+
         // コメント表示
         function showComment(c) {
+            // "m" プロパティがある場合は特別表示（オレンジ色、アバターなし）
+            if (c.m) {
+                const div = document.createElement("div");
+                div.style.display = "flex";
+                div.style.alignItems = "flex-start";
+                div.style.marginBottom = "5px";
+                div.style.background = "#fff3e0"; // オレンジ系の背景
+                div.style.padding = "5px 10px";
+                div.style.borderRadius = "5px";
+                div.style.boxShadow = "1px 1px 3px #aaa";
+                div.style.borderLeft = "4px solid #ff9800"; // オレンジの左ボーダー
+
+                const textP = document.createElement("p");
+                textP.style.margin = "0";
+                textP.style.color = "#ff9800"; // オレンジ色のテキスト
+                textP.style.fontWeight = "bold";
+                textP.textContent = c.m;
+
+                div.appendChild(textP);
+
+                // 重複チェック用にコメントを記録
+                const commentHash = `${c.u}_${c.m}_${c.created_at || Date.now()}`;
+                receivedComments.add(commentHash);
+
+                document.getElementById("comment").prepend(div);
+                return;
+            }
+
+            // 通常のコメント表示
             const div = document.createElement("div");
             div.style.display = "flex";
             div.style.alignItems = "flex-start";   // 上揃え
@@ -670,11 +1675,22 @@
 
             const nameSpan = document.createElement("span");
             nameSpan.className = "comment-name";
-            nameSpan.textContent = c.ac;
             nameSpan.style.color = "#999";
             nameSpan.style.fontSize = "0.9em";
             nameSpan.style.marginBottom = "2px";
             nameSpan.style.textAlign = "left";
+
+            // ポーリングで補完されたコメントにマーカーを追加
+            if (c.fromPolling) {
+                const marker = document.createElement("span");
+                marker.textContent = "[補完] ";
+                marker.style.color = "#ff9800";
+                marker.style.fontWeight = "bold";
+                nameSpan.appendChild(marker);
+            }
+
+            const nameText = document.createTextNode(c.ac);
+            nameSpan.appendChild(nameText);
 
             const textP = document.createElement("p");
             textP.className = "comment-text";
@@ -688,8 +1704,414 @@
             div.appendChild(img);
             div.appendChild(wrapperDiv);
 
+            // コメントをクリック可能に
+            div.style.cursor = "pointer";
+            div.onclick = () => {
+                showCommentHistory(c.u, c.ac, c.av);
+            };
+
+            // コメント履歴に追加
+            if (!commentHistory[c.u]) {
+                commentHistory[c.u] = [];
+            }
+            commentHistory[c.u].unshift({
+                time: c.created_at ? new Date(c.created_at * 1000) : new Date(),
+                name: c.ac,
+                text: c.cm,
+                avatar: c.av
+            });
+            // 最大100件まで保持
+            if (commentHistory[c.u].length > 100) {
+                commentHistory[c.u].pop();
+            }
+
+            // コメント履歴モーダルが開いている場合、リアルタイム更新
+            const commentModal = document.getElementById("commentHistoryModal");
+            if (commentModal.classList.contains("show")) {
+                const currentUserId = commentModal.getAttribute("data-user-id");
+                if (currentUserId == c.u) {
+                    showCommentHistory(c.u, c.ac, c.av);
+                }
+            }
+
+            // 重複チェック用にコメントを記録
+            const commentHash = `${c.u}_${c.cm}_${c.created_at || Date.now()}`;
+            receivedComments.add(commentHash);
+
             document.getElementById("comment").prepend(div);
         }
+
+        // コメント履歴を表示
+        function showCommentHistory(userId, userName, avatarId) {
+            const modal = document.getElementById("commentHistoryModal");
+            const userSpan = document.getElementById("commentHistoryUser");
+            const listDiv = document.getElementById("commentHistoryList");
+
+            // アバター付きでユーザー名を表示
+            if (avatarId) {
+                const avatarImg = `<img src="https://image.showroom-cdn.com/showroom-prod/image/avatar/${avatarId}.png" style="width:30px; height:30px; vertical-align:middle; margin-right:8px; border-radius:50%;">`;
+                userSpan.innerHTML = avatarImg + userName;
+            } else {
+                userSpan.textContent = userName;
+            }
+
+            listDiv.innerHTML = "";
+
+            // 現在表示中のユーザーIDを保存
+            modal.setAttribute("data-user-id", userId);
+
+            const history = commentHistory[userId] || [];
+            if (history.length === 0) {
+                listDiv.innerHTML = "<p style='text-align:center; color:#999;'>コメント履歴がありません</p>";
+            } else {
+                history.forEach(item => {
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "history-item";
+
+                    const timeDiv = document.createElement("div");
+                    timeDiv.className = "history-time";
+                    timeDiv.textContent = item.time.toLocaleTimeString();
+
+                    const textDiv = document.createElement("div");
+                    textDiv.className = "history-text";
+                    textDiv.textContent = item.text;
+
+                    itemDiv.appendChild(timeDiv);
+                    itemDiv.appendChild(textDiv);
+                    listDiv.appendChild(itemDiv);
+                });
+            }
+
+            modal.classList.add("show");
+            // オーバーレイは表示しない
+        }
+
+        // コメント履歴モーダルを閉じる
+        document.getElementById("closeCommentHistory").onclick = () => {
+            document.getElementById("commentHistoryModal").classList.remove("show");
+            // 他のモーダルが開いていなければオーバーレイも閉じる
+            if (document.getElementById("alarmModal").style.display !== "block" &&
+                document.getElementById("notificationModal").style.display !== "block") {
+                document.getElementById("overlay").style.display = "none";
+            }
+        };
+
+        // ギフト履歴を表示
+        function showGiftHistory(userId, userName) {
+            const modal = document.getElementById("giftHistoryModal");
+            const userSpan = document.getElementById("giftHistoryUser");
+            const listDiv = document.getElementById("giftHistoryList");
+
+            userSpan.textContent = userName;
+            listDiv.innerHTML = "";
+
+            const history = giftHistory[userId] || [];
+            if (history.length === 0) {
+                listDiv.innerHTML = "<p style='text-align:center; color:#999;'>ギフト履歴がありません</p>";
+            } else {
+                let totalPoints = 0;
+
+                history.forEach(item => {
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "gift-history-item";
+
+                    const timeDiv = document.createElement("div");
+                    timeDiv.className = "gift-history-time";
+                    timeDiv.textContent = item.time.toLocaleTimeString();
+
+                    const giftDiv = document.createElement("div");
+                    giftDiv.className = "gift-history-gift";
+
+                    const giftImg = document.createElement("img");
+                    giftImg.src = `https://static.showroom-live.com/image/gift/${item.giftId}_s.png?v=7`;
+
+                    const giftNameSpan = document.createElement("span");
+                    giftNameSpan.className = "gift-history-gift-name";
+                    giftNameSpan.textContent = item.giftName;
+
+                    const countSpan = document.createElement("span");
+                    countSpan.className = "gift-history-count";
+                    countSpan.textContent = `×${item.count}`;
+
+                    // ポイント計算
+                    const giftInfo = giftMasterData[item.giftId];
+                    if (giftInfo) {
+                        const points = calculateGiftPoints(item.giftId, item.count, giftInfo.free, giftInfo.point);
+                        totalPoints += points;
+
+                        // ギフト画像にツールチップを設定（名前と単体ポイント）
+                        const unit = giftInfo.free ? "pt" : "G";
+                        giftImg.title = `${giftInfo.name}\n${giftInfo.point}${unit}`;
+
+                        // 計算されたポイントを表示
+                        const pointSpan = document.createElement("span");
+                        pointSpan.style.color = "#666";
+                        pointSpan.style.marginLeft = "5px";
+                        pointSpan.textContent = `(${Math.floor(points).toLocaleString()}pt)`;
+                        countSpan.appendChild(pointSpan);
+                    }
+
+                    giftDiv.appendChild(giftImg);
+                    giftDiv.appendChild(giftNameSpan);
+                    giftDiv.appendChild(countSpan);
+
+                    itemDiv.appendChild(timeDiv);
+                    itemDiv.appendChild(giftDiv);
+                    listDiv.appendChild(itemDiv);
+                });
+
+                // 合計ポイント表示
+                const totalDiv = document.createElement("div");
+                totalDiv.style.marginTop = "15px";
+                totalDiv.style.padding = "10px";
+                totalDiv.style.borderTop = "2px solid #4CAF50";
+                totalDiv.style.textAlign = "right";
+                totalDiv.style.fontWeight = "bold";
+                totalDiv.style.fontSize = "1.1em";
+                totalDiv.textContent = `合計: ${Math.floor(totalPoints).toLocaleString()}pt`;
+                listDiv.appendChild(totalDiv);
+            }
+
+            modal.classList.add("show");
+            // オーバーレイは表示しない
+        }
+
+        // ギフト履歴モーダルを閉じる
+        document.getElementById("closeGiftHistory").onclick = () => {
+            document.getElementById("giftHistoryModal").classList.remove("show");
+            // 他のモーダルが開いていなければオーバーレイも閉じる
+            if (document.getElementById("alarmModal").style.display !== "block" &&
+                document.getElementById("notificationModal").style.display !== "block" &&
+                !document.getElementById("commentHistoryModal").classList.contains("show")) {
+                document.getElementById("overlay").style.display = "none";
+            }
+        };
+
+        // コメント履歴モーダルをドラッグ可能にする
+        (function () {
+            const modal = document.getElementById("commentHistoryModal");
+            const header = modal.querySelector("h3");
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            header.style.cursor = "move";
+
+            header.addEventListener("mousedown", dragStart);
+            document.addEventListener("mousemove", drag);
+            document.addEventListener("mouseup", dragEnd);
+
+            function dragStart(e) {
+                // 閉じるボタンをクリックした場合はドラッグしない
+                if (e.target.id === "closeCommentHistory" || e.target.closest("#closeCommentHistory")) {
+                    return;
+                }
+
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === header || header.contains(e.target)) {
+                    isDragging = true;
+                }
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    setTranslate(currentX, currentY, modal);
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate(calc(-50% + ${xPos}px), calc(-50% + ${yPos}px))`;
+            }
+        })();
+
+        // ギフト履歴モーダルをドラッグ可能にする
+        (function () {
+            const modal = document.getElementById("giftHistoryModal");
+            // h3をドラッグハンドルにする
+            const header = modal.querySelector("h3");
+
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            header.style.cursor = "move";
+
+            header.addEventListener("mousedown", dragStart);
+            document.addEventListener("mousemove", drag);
+            document.addEventListener("mouseup", dragEnd);
+
+            function dragStart(e) {
+                // 閉じるボタンをクリックした場合はドラッグしない
+                if (e.target.id === "closeGiftHistory" || e.target.closest("#closeGiftHistory")) {
+                    return;
+                }
+
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === header || header.contains(e.target)) {
+                    isDragging = true;
+                }
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    setTranslate(currentX, currentY, modal);
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate(calc(-50% + ${xPos}px), calc(-50% + ${yPos}px))`;
+            }
+        })();
+
+        // 設定パネルをドラッグ可能にする
+        (function () {
+            const modal = document.getElementById("settingsPanel");
+            const header = document.getElementById("settingsHeader");
+
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            header.addEventListener("mousedown", dragStart);
+            document.addEventListener("mousemove", drag);
+            document.addEventListener("mouseup", dragEnd);
+
+            function dragStart(e) {
+                if (e.target.id === "closeSettings" || e.target.closest("#closeSettings")) {
+                    return;
+                }
+
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === header || header.contains(e.target)) {
+                    isDragging = true;
+                }
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    setTranslate(currentX, currentY, modal);
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate(calc(-50% + ${xPos}px), calc(-50% + ${yPos}px))`;
+            }
+        })();
+        (function () {
+            const modal = document.getElementById("giftHistoryModal");
+            const header = modal.querySelector("h3");
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            header.style.cursor = "move";
+
+            header.addEventListener("mousedown", dragStart);
+            document.addEventListener("mousemove", drag);
+            document.addEventListener("mouseup", dragEnd);
+
+            function dragStart(e) {
+                if (e.target.id === "closeGiftHistory" || e.target.closest("#closeGiftHistory")) {
+                    return;
+                }
+
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === header || header.contains(e.target)) {
+                    isDragging = true;
+                }
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    setTranslate(currentX, currentY, modal);
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate(calc(-50% + ${xPos}px), calc(-50% + ${yPos}px))`;
+            }
+        })();
+
 
 
         // ギフト表示（累積）
@@ -699,8 +2121,8 @@
 
             // 無料ギフト（gt===2）
             if (gt === 2) {
-                if (g.g === 3000421) {
-                    // 星（ID:3000421）
+                if (g.g === 3000421 || g.g === 3000421) {
+                    // 星（ID:3000421, 3000421）
                     containerId = "freeStar";
                     giftMap = freeStarMap;
                 } else {
@@ -722,6 +2144,33 @@
                 const item = giftMap[key];
                 item.count += g.n;
                 item.time = Date.now();
+
+                // ギフト履歴に追加（更新時も）
+                const giftInfo = giftMasterData[g.g];
+                const giftType = gt === 2 ? (g.g === 3000421 ? 'freeStar' : 'freeOther') : 'paid';
+                if (!giftHistory[g.u]) {
+                    giftHistory[g.u] = [];
+                }
+                giftHistory[g.u].unshift({
+                    time: g.created_at ? new Date(g.created_at * 1000) : new Date(),
+                    name: g.ac,
+                    giftId: g.g,
+                    giftName: giftInfo ? giftInfo.name : `ギフトID:${g.g}`,
+                    count: g.n,
+                    type: giftType
+                });
+                if (giftHistory[g.u].length > 100) {
+                    giftHistory[g.u].pop();
+                }
+
+                // ギフト履歴モーダルが開いている場合、リアルタイム更新
+                const giftModal = document.getElementById("giftHistoryModal");
+                if (giftModal.classList.contains("show")) {
+                    const currentUserId = giftModal.getAttribute("data-user-id");
+                    if (currentUserId == g.u) {
+                        showGiftHistory(g.u, g.ac);
+                    }
+                }
 
                 // 表示更新（全ギフト共通のレイアウト）
                 const nameSpan = item.div.querySelector(".gift-name");
@@ -745,6 +2194,9 @@
                     }
                 }
 
+                // 高額ギフトチェック（1回の投稿個数で計算）
+                checkAndDisplayHighValueGift(g.u, g.ac, g.av, g.g, g.n);
+
                 // 最新行としてトップに移動
                 item.div.remove();
                 document.getElementById(containerId).prepend(item.div);
@@ -756,6 +2208,12 @@
             const div = document.createElement("div");
             div.className = "giftItem";
 
+            // ギフト枠全体をクリック可能に
+            div.style.cursor = "pointer";
+            div.onclick = () => {
+                showGiftHistory(g.u, g.ac);
+            };
+
             // 全ギフト共通のレイアウト
             const img1 = document.createElement("img");
             img1.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${g.av}.png`;
@@ -765,6 +2223,33 @@
             if (giftInfo) {
                 // img1.title = `${giftInfo.name}: ${giftInfo.point}pt`; // アバター画像ではなくギフト画像につけるべきか？
                 // ユーザー要望は「有料ギフトのマウスオーバーした際に」なので、ギフト画像につけるのが適切
+            }
+
+            // ギフト履歴に追加
+            const giftType = gt === 2 ? (g.g === 3000421 ? 'freeStar' : 'freeOther') : 'paid';
+            if (!giftHistory[g.u]) {
+                giftHistory[g.u] = [];
+            }
+            giftHistory[g.u].unshift({
+                time: g.created_at ? new Date(g.created_at * 1000) : new Date(),
+                name: g.ac,
+                giftId: g.g,
+                giftName: giftInfo ? giftInfo.name : `ギフトID:${g.g}`,
+                count: g.n,
+                type: giftType
+            });
+            // 最大100件まで保持
+            if (giftHistory[g.u].length > 100) {
+                giftHistory[g.u].pop();
+            }
+
+            // ギフト履歴モーダルが開いている場合、リアルタイム更新
+            const giftModal = document.getElementById("giftHistoryModal");
+            if (giftModal.classList.contains("show")) {
+                const currentUserId = giftModal.getAttribute("data-user-id");
+                if (currentUserId == g.u) {
+                    showGiftHistory(g.u, g.ac);
+                }
             }
 
             const contentDiv = document.createElement("div");
@@ -811,6 +2296,384 @@
             document.getElementById(containerId).prepend(div);
 
             giftMap[key] = { div: div, count: g.n, time: Date.now() };
+
+            // 高額ギフトチェック
+            checkAndDisplayHighValueGift(g.u, g.ac, g.av, g.g, g.n);
+        }
+
+        // ギフトポイント計算関数
+        function calculateGiftPoints(giftId, count, isFree, basePoint) {
+            // 個数による倍率テーブル
+            const quantityMultipliers = {
+                1: 1.00,
+                2: 1.04,
+                3: 1.06,
+                4: 1.08,
+                5: 1.10,
+                6: 1.12,
+                7: 1.14,
+                8: 1.16,
+                9: 1.18,
+                10: 1.20
+            };
+
+            // 個数倍率を取得（10個超える場合は1.2倍固定）
+            const quantityMultiplier = count <= 10 ? quantityMultipliers[count] : 1.20;
+
+            let totalPoints = 0;
+
+            if (isFree) {
+                // 無料ギフトの計算
+                const isStar = (giftId === 3000421 || giftId === 800094);
+
+                if (isStar) {
+                    // 無料ギフト☆: 基本ポイント × 個数 × 倍率
+                    totalPoints = basePoint * count * quantityMultiplier;
+                } else {
+                    // 無料ギフト（その他）: 基本ポイント × 個数 × 倍率
+                    totalPoints = basePoint * count * quantityMultiplier;
+
+                    // ギフトID 1601 は追加で2.5倍
+                    if (giftId === 1601) {
+                        totalPoints *= 2.5;
+                    }
+                }
+            } else {
+                // 有料ギフトの計算
+                // 基本G × 2.5 × 個数 × 倍率
+                totalPoints = basePoint * 2.5 * count * quantityMultiplier;
+
+                // 500G以上のギフトは×1～×10個すべて1.2倍計算
+                if (basePoint >= 500 && count <= 10) {
+                    totalPoints = basePoint * 2.5 * count * 1.20;
+                }
+            }
+
+            return Math.floor(totalPoints);
+        }
+
+        // 高額ギフト表示チェックと更新
+        function checkAndDisplayHighValueGift(userId, userName, avatarId, giftId, count) {
+            // ギフト情報を取得（なければデフォルト作成）
+            let giftInfo = giftMasterData[giftId];
+            if (!giftInfo) {
+                giftInfo = {
+                    name: `Unknown Gift (${giftId})`,
+                    free: true,
+                    point: 1
+                };
+            }
+
+            // 1回の投稿のポイント計算
+            const pointsThisGift = calculateGiftPoints(giftId, count, giftInfo.free, giftInfo.point);
+
+            // ユーザーごとの集計データを初期化
+            if (!userHighValueData[userId]) {
+                userHighValueData[userId] = {
+                    totalPoints: 0,
+                    totalCount: 0, // 全ギフトの合計個数
+                    bestGift: { id: 0, point: -1, name: "" },
+                    gifts: {} // giftId: { count: 0, points: 0, info: ... }
+                };
+            }
+
+            const userData = userHighValueData[userId];
+            userData.totalPoints += pointsThisGift;
+            userData.totalCount += count;
+
+            // ギフトごとの集計
+            if (!userData.gifts[giftId]) {
+                userData.gifts[giftId] = {
+                    count: 0,
+                    points: 0,
+                    info: giftInfo
+                };
+            }
+            userData.gifts[giftId].count += count;
+            userData.gifts[giftId].points += pointsThisGift;
+
+            // 最高単価ギフトの更新チェック
+            // 既存のbestGiftより単価が高い、または同じで未設定の場合
+            if (giftInfo.point > userData.bestGift.point) {
+                userData.bestGift = {
+                    id: giftId,
+                    point: giftInfo.point,
+                    name: giftInfo.name,
+                    free: giftInfo.free
+                };
+            }
+
+            // 表示閾値チェック (10000pt以上)
+            if (userData.totalPoints >= 10000) {
+                updateHighValueDisplay(userId, userName, avatarId, userData);
+            }
+        }
+
+        function updateHighValueDisplay(userId, userName, avatarId, userData) {
+            const container = document.getElementById("highValueGiftContainer");
+            const itemId = `high-value-${userId}`;
+            let itemDiv = document.getElementById(itemId);
+
+            // 表示内容の構築
+            const bestGiftId = userData.bestGift.id;
+            const totalPoints = userData.totalPoints;
+
+            // 枠の色判定
+            let borderClass = "silver";
+            if (totalPoints >= 30000) {
+                borderClass = "gold";
+            }
+
+            if (itemDiv) {
+                // 既存更新
+                itemDiv.className = `high-value-gift-item ${borderClass}`;
+
+                // 画像更新（最高単価ギフトが変わった場合など）
+                const giftImg = itemDiv.querySelector("img.gift");
+                if (giftImg.src.indexOf(`${bestGiftId}_s.png`) === -1) {
+                    giftImg.src = `https://static.showroom-live.com/image/gift/${bestGiftId}_s.png?v=7`;
+                    giftImg.title = userData.bestGift.name;
+                }
+
+                // ポイント更新
+                const countSpan = itemDiv.querySelector(".count");
+                countSpan.textContent = `${Math.floor(totalPoints).toLocaleString()}pt`;
+
+                // アバター画像にジャンプアニメーションを適用
+                const avatarImg = itemDiv.querySelector("img.avatar");
+                if (avatarImg) {
+                    // 既存のアニメーションクラスを削除
+                    avatarImg.classList.remove("jump");
+                    // リフローを強制してアニメーションをリセット
+                    void avatarImg.offsetWidth;
+                    // ジャンプアニメーションを開始
+                    avatarImg.classList.add("jump");
+
+                    // アニメーション終了後にクラスを削除（再利用可能にする）
+                    setTimeout(() => {
+                        avatarImg.classList.remove("jump");
+                    }, 500); // アニメーション時間と同じ
+                }
+
+                // 位置はsortHighValueItems()で決定されるため、ここでは移動しない
+
+            } else {
+                // 新規作成
+                itemDiv = document.createElement("div");
+                itemDiv.id = itemId;
+                itemDiv.className = `high-value-gift-item ${borderClass}`;
+
+                const avatarImg = document.createElement("img");
+                avatarImg.className = "avatar";
+                avatarImg.src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${avatarId}.png`;
+                avatarImg.title = userName;
+
+                const giftImg = document.createElement("img");
+                giftImg.className = "gift";
+                giftImg.src = `https://static.showroom-live.com/image/gift/${bestGiftId}_s.png?v=7`;
+                giftImg.title = userData.bestGift.name;
+
+                const topDiv = document.createElement("div");
+                topDiv.className = "high-value-gift-top";
+                topDiv.appendChild(avatarImg);
+                topDiv.appendChild(giftImg);
+
+                const countSpan = document.createElement("span");
+                countSpan.className = "count";
+                countSpan.textContent = `${Math.floor(totalPoints).toLocaleString()}pt`;
+
+                itemDiv.appendChild(topDiv);
+                itemDiv.appendChild(countSpan);
+
+                // クリックイベント
+                itemDiv.style.cursor = "pointer";
+                itemDiv.onclick = (e) => {
+                    showHighValuePopup(e, userId, userName, avatarId, userData);
+                };
+
+                container.appendChild(itemDiv);
+            }
+
+            // ポイント順にソート（アニメーション付き）
+            sortHighValueItems();
+        }
+
+        // ポイント順にソートしてアニメーション
+        function sortHighValueItems() {
+            const container = document.getElementById("highValueGiftContainer");
+            if (!container) return;
+
+            const items = Array.from(container.children);
+            if (items.length <= 1) return; // 1つ以下ならソート不要
+
+            // 現在の位置（インデックス）と画面上の位置を記録
+            const oldPositions = new Map();
+            const oldScreenPositions = new Map();
+            items.forEach((item, index) => {
+                const userId = item.id.replace('high-value-', '');
+                oldPositions.set(userId, index);
+                // 画面上の実際の位置を記録
+                const rect = item.getBoundingClientRect();
+                oldScreenPositions.set(userId, { left: rect.left, top: rect.top });
+            });
+
+            // ポイント順にソート（降順）
+            items.sort((a, b) => {
+                const userIdA = a.id.replace('high-value-', '');
+                const userIdB = b.id.replace('high-value-', '');
+                const pointsA = userHighValueData[userIdA]?.totalPoints || 0;
+                const pointsB = userHighValueData[userIdB]?.totalPoints || 0;
+                return pointsB - pointsA; // 降順
+            });
+
+            // DOM再配置（ソート順に）
+            items.forEach(item => container.appendChild(item));
+
+            // リフローを強制
+            void container.offsetHeight;
+
+            // 位置変更を検出してアニメーション
+            items.forEach((item, newIndex) => {
+                const userId = item.id.replace('high-value-', '');
+                const oldIndex = oldPositions.get(userId);
+
+                if (oldIndex !== undefined && oldIndex !== newIndex) {
+                    const oldPos = oldScreenPositions.get(userId);
+                    const newRect = item.getBoundingClientRect();
+
+                    // 実際の画面上の移動距離（Old - New）
+                    // Jumper (Left/Up): Positive
+                    // Overtaken (Right/Down): Negative
+                    const moveDistance = oldPos.left - newRect.left;
+
+                    if (newIndex < oldIndex) {
+                        // Jumper (順位上昇) -> 放物線アニメーション
+                        // CSS変数に移動距離を設定
+                        item.style.setProperty('--move-distance', `${moveDistance}px`);
+                        item.classList.remove('moving');
+                        void item.offsetWidth; // リフロー
+                        item.classList.add('moving');
+
+                        // アニメーション終了後にクラスとスタイルを削除
+                        setTimeout(() => {
+                            item.classList.remove('moving');
+                            item.style.removeProperty('--move-distance');
+                        }, 800);
+                    } else {
+                        // Overtaken (順位下降) -> スライドアニメーション (FLIP)
+                        // 1. トランジションなしで元の位置に移動
+                        item.style.transition = 'none';
+                        item.style.transform = `translateX(${moveDistance}px)`;
+
+                        // 2. リフロー
+                        void item.offsetWidth;
+
+                        // 3. トランジション有効化して新しい位置（0）へ移動
+                        item.style.transition = 'transform 0.8s cubic-bezier(0.45, 0, 0.55, 1)';
+                        item.style.transform = 'translateX(0)';
+
+                        // 4. クリーンアップ
+                        setTimeout(() => {
+                            item.style.transition = '';
+                            item.style.transform = '';
+                        }, 800);
+                    }
+                }
+            });
+        }
+
+        function showHighValuePopup(e, userId, userName, avatarId, userData) {
+            const popup = document.getElementById("highValuePopup");
+
+            // ヘッダー情報
+            document.getElementById("popupAvatar").src = `https://image.showroom-cdn.com/showroom-prod/image/avatar/${avatarId}.png`;
+            document.getElementById("popupUserName").textContent = userName;
+
+            // コンテンツエリアのクリアと再構築
+            const contentDiv = popup.querySelector(".high-value-popup-content");
+            contentDiv.innerHTML = "";
+
+            // 累計ポイント（一番上）
+            const totalRow = document.createElement("div");
+            totalRow.className = "high-value-popup-row";
+            totalRow.style.borderBottom = "2px solid #eee";
+            totalRow.style.marginBottom = "10px";
+            totalRow.style.paddingBottom = "5px";
+
+            const totalLabel = document.createElement("span");
+            totalLabel.className = "high-value-popup-label";
+            totalLabel.textContent = "累計ポイント:";
+
+            const totalValue = document.createElement("span");
+            totalValue.className = "high-value-popup-value";
+            totalValue.style.fontSize = "1.2em";
+            totalValue.style.color = "#d00";
+            totalValue.textContent = `${Math.floor(userData.totalPoints).toLocaleString()}pt`;
+
+            totalRow.appendChild(totalLabel);
+            totalRow.appendChild(totalValue);
+            contentDiv.appendChild(totalRow);
+
+            // ギフト一覧（縦に並べる）
+            // userData.gifts をループ
+            Object.keys(userData.gifts).forEach(giftId => {
+                const giftData = userData.gifts[giftId];
+
+                const row = document.createElement("div");
+                row.className = "high-value-popup-row";
+                row.style.justifyContent = "flex-start"; // 左寄せ
+                row.style.marginBottom = "5px";
+
+                const img = document.createElement("img");
+                img.src = `https://static.showroom-live.com/image/gift/${giftId}_s.png?v=7`;
+                img.style.width = "30px";
+                img.style.height = "30px";
+                img.style.marginRight = "10px";
+
+                // ギフト価格表示（有料ギフトはG、無料ギフトはpt）
+                const priceText = document.createElement("span");
+                priceText.style.fontSize = "0.9em";
+                priceText.style.color = "#666";
+                priceText.style.marginRight = "5px";
+                const unit = giftData.info.free ? "pt" : "G";
+                priceText.textContent = `(${giftData.info.point.toLocaleString()}${unit})`;
+
+                const countText = document.createElement("span");
+                countText.style.fontWeight = "bold";
+                countText.textContent = `× ${giftData.count.toLocaleString()}`;
+
+                const nameText = document.createElement("span");
+                nameText.style.fontSize = "0.8em";
+                nameText.style.color = "#666";
+                nameText.style.marginLeft = "10px";
+                nameText.textContent = `(${giftData.info.name})`;
+
+                row.appendChild(img);
+                row.appendChild(priceText);
+                row.appendChild(countText);
+                row.appendChild(nameText);
+
+                contentDiv.appendChild(row);
+            });
+
+            // ポップアップ表示位置計算
+            popup.classList.add("show");
+            const popupRect = popup.getBoundingClientRect();
+
+            let left = e.clientX + 10;
+            let top = e.clientY + 10;
+
+            if (left + popupRect.width > window.innerWidth) {
+                left = e.clientX - popupRect.width - 10;
+            }
+            if (top + popupRect.height > window.innerHeight) {
+                top = e.clientY - popupRect.height - 10;
+            }
+            if (left < 0) left = 10;
+            if (top < 0) top = 10;
+
+            popup.style.left = `${left}px`;
+            popup.style.top = `${top}px`;
         }
 
         // ステータス更新
@@ -887,6 +2750,10 @@
                     console.warn("gift_list取得失敗:", e);
                 }
 
+                // コメントログポーリング開始
+                currentRoomId = roomId;
+                startCommentLogPolling(roomId);
+
                 const res = await fetch(`/get_broadcast_key?room_id=${roomId}`);
                 const json = await res.json();
                 if (!json.broadcast_key) { alert("broadcast_key取得失敗"); return; }
@@ -906,6 +2773,9 @@
                 };
 
                 socket.onmessage = (msg) => {
+                    // 一時停止中はメッセージを処理しない
+                    if (isPaused) return;
+
                     const data = msg.data;
                     if (data.startsWith("ACK") || data.startsWith("ERR")) return;
                     const obj = JSON.parse(data.replace(`MSG\t${broadcastKey}`, ""));
@@ -942,6 +2812,86 @@
             }
         }
 
+
+
+
+        // コメントログポーリング開始
+        function startCommentLogPolling(roomId) {
+            // 既存のポーリングを停止
+            if (commentLogInterval) {
+                clearInterval(commentLogInterval);
+            }
+
+            let isPolling = false;
+
+            const poll = async () => {
+                if (isPolling) return; // 前回の処理が終わっていなければスキップ
+                if (isPaused) return; // 一時停止中はポーリングしない
+                isPolling = true;
+
+                try {
+                    const res = await fetch(`/comment_log?room_id=${roomId}`);
+                    const json = await res.json();
+
+                    if (json && json.comment_log && Array.isArray(json.comment_log)) {
+                        // コメントを古い順に処理（時系列順に表示するため）
+                        const comments = json.comment_log.slice().reverse();
+
+                        comments.forEach(comment => {
+                            // SHOWROOM運営のシステムメッセージ(user_id: 0)は復元しない
+                            if (comment.user_id === 0) return;
+
+                            // 重複チェック: 同ユーザーID、同コメント、±5秒以内であれば重複とみなす
+                            const isDuplicate = Array.from(receivedComments).some(hash => {
+                                const firstUnderscore = hash.indexOf('_');
+                                const lastUnderscore = hash.lastIndexOf('_');
+
+                                if (firstUnderscore === -1 || lastUnderscore === -1 || firstUnderscore === lastUnderscore) {
+                                    return false;
+                                }
+
+                                const storedUserId = hash.substring(0, firstUnderscore);
+                                const storedTimestamp = hash.substring(lastUnderscore + 1);
+                                const storedComment = hash.substring(firstUnderscore + 1, lastUnderscore);
+
+                                if (storedUserId == comment.user_id && storedComment === comment.comment) {
+                                    const timeDiff = Math.abs(parseInt(storedTimestamp) - comment.created_at);
+                                    return timeDiff <= 5; // ±5秒以内
+                                }
+                                return false;
+                            });
+
+                            if (!isDuplicate) {
+                                const commentHash = `${comment.user_id}_${comment.comment}_${comment.created_at}`;
+                                receivedComments.add(commentHash);
+
+                                // コメントを表示（補完されたことを示すマーカー付き）
+                                const commentObj = {
+                                    u: comment.user_id,
+                                    ac: comment.name,
+                                    cm: comment.comment,
+                                    av: comment.avatar_id, // アバターIDをマッピング
+                                    created_at: comment.created_at,
+                                    fromPolling: true // ポーリングからのコメントであることを示すフラグ
+                                };
+                                showComment(commentObj);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn("comment_logポーリングエラー:", e);
+                } finally {
+                    isPolling = false;
+                }
+            };
+
+            // 初回即時実行
+            poll();
+
+            // 10秒ごとにポーリング（間隔を広げて負荷軽減）
+            commentLogInterval = setInterval(poll, 10000);
+        }
+
         // 経過時間更新
         setInterval(() => {
             if (startedAt) {
@@ -964,6 +2914,144 @@
 
         // 初期ルーム
         connectRoom(490133);
+        // リサイズ機能
+        const resizer = document.getElementById("resizer");
+        const bottomPanel = document.getElementById("highValueGiftContainer");
+        const container = document.querySelector(".container");
+        let isResizing = false;
+        let startY = 0;
+        let startHeight = 0;
+
+        resizer.addEventListener("mousedown", (e) => {
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = parseInt(document.defaultView.getComputedStyle(bottomPanel).height, 10);
+            document.body.style.cursor = "row-resize";
+            document.body.style.userSelect = "none"; // ドラッグ中のテキスト選択防止
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isResizing) return;
+            const dy = startY - e.clientY; // 上にドラッグすると高さが増える
+            const newHeight = startHeight + dy;
+
+            // 最小・最大高さの制限
+            if (newHeight > 50 && newHeight < window.innerHeight - 150) {
+                bottomPanel.style.height = `${newHeight}px`;
+            }
+        });
+
+        document.addEventListener("mouseup", () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+            }
+        });
+
+        // カラムリサイズ機能
+        document.querySelectorAll('.col-resizer').forEach(resizer => {
+            resizer.addEventListener('mousedown', (e) => {
+                let leftCol = resizer.previousElementSibling;
+                while (leftCol && !leftCol.classList.contains('column')) {
+                    leftCol = leftCol.previousElementSibling;
+                }
+
+                let rightCol = resizer.nextElementSibling;
+                while (rightCol && !rightCol.classList.contains('column')) {
+                    rightCol = rightCol.nextElementSibling;
+                }
+
+                // モーダルなどが間にある場合の対策（念のため）
+                if (!leftCol || !rightCol) return;
+
+                const startX = e.clientX;
+                const startLeftWidth = leftCol.getBoundingClientRect().width;
+                const startRightWidth = rightCol.getBoundingClientRect().width;
+
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+
+                const onMouseMove = (e) => {
+                    const dx = e.clientX - startX;
+                    // 最小幅チェック (50px)
+                    if (startLeftWidth + dx > 50 && startRightWidth - dx > 50) {
+                        leftCol.style.flex = `0 0 ${startLeftWidth + dx}px`;
+                        rightCol.style.flex = `0 0 ${startRightWidth - dx}px`;
+                    }
+                };
+
+                const onMouseUp = () => {
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        });
+
+
+        // 設定パネルのドラッグ機能
+        const settingsHeader = document.getElementById("settingsHeader");
+        let isDraggingSettings = false;
+        let settingsStartX, settingsStartY;
+        let settingsPanelWidth, settingsPanelHeight;
+        let isTransformRemoved = false;
+
+        settingsHeader.addEventListener("mousedown", (e) => {
+            isDraggingSettings = true;
+
+            // 現在のパネル位置を取得
+            const rect = settingsPanel.getBoundingClientRect();
+
+            // マウスのパネル内でのオフセットを計算
+            settingsStartX = e.clientX - rect.left;
+            settingsStartY = e.clientY - rect.top;
+
+            // パネルのサイズを取得
+            settingsPanelWidth = rect.width;
+            settingsPanelHeight = rect.height;
+
+            document.body.style.cursor = "move";
+            document.body.style.userSelect = "none";
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isDraggingSettings) return;
+
+            // マウス位置からオフセットを引いて、パネルの左上位置を計算
+            let newLeft = e.clientX - settingsStartX;
+            let newTop = e.clientY - settingsStartY;
+
+            // 画面外に出ないように制限
+            const maxLeft = window.innerWidth - settingsPanelWidth;
+            const maxTop = window.innerHeight - settingsPanelHeight;
+
+            newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+
+            // 位置を設定
+            settingsPanel.style.left = `${newLeft}px`;
+            settingsPanel.style.top = `${newTop}px`;
+        });
+
+        document.addEventListener("mouseup", () => {
+            if (isDraggingSettings) {
+                isDraggingSettings = false;
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+            }
+        });
+        // ウィンドウリサイズ時に設定パネルの位置を調整
+        window.addEventListener("resize", () => {
+            if (settingsPanel.style.display === "block") {
+                adjustSettingsPanelPosition();
+            }
+        });
     </script>
 </body>
 
