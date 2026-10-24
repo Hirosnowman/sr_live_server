@@ -9,7 +9,17 @@ import { spawn, execFile } from "child_process";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import WebSocket from "ws";
-import { RE_DIGITS, RE_URLKEY, parseAllowedUrl } from "./security.mjs";
+import rateLimit from "express-rate-limit";
+import {
+    RE_DIGITS,
+    RE_URLKEY,
+    RATE_LIMIT_CONFIG,
+    WS_LIMIT_CONFIG,
+    isWorkerHost,
+    parseAllowedUrl,
+    verifySecretKey,
+    getClientIp,
+} from "./security.mjs";
 
 // ESM の __dirname 再現
 const __filename = fileURLToPath(import.meta.url);
@@ -37,6 +47,9 @@ function runPythonScript(scriptName, args, res, label) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// R4: Render のリバースプロキシ配下でクライアントごとの IP (X-Forwarded-For) を正しく識別する
+app.set("trust proxy", 1);
+
 // Debug Logger
 app.use((req, res, next) => {
     console.log(`[Request] ${req.method} ${req.url}`);
@@ -46,6 +59,21 @@ app.use((req, res, next) => {
 // JSONボディのパースを有効化
 app.use(express.json());
 
+// R4: IP ごとのレート制限（画面のポーリング間隔＋バーストから逆算した上限）
+const createEndpointLimiter = (max, label) =>
+    rateLimit({
+        windowMs: RATE_LIMIT_CONFIG.windowMs,
+        limit: max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { error: `Too many requests (${label}), please try again later.` },
+    });
+
+app.use("/comment_log", createEndpointLimiter(RATE_LIMIT_CONFIG.commentLogMax, "comment_log"));
+app.use("/room_profile", createEndpointLimiter(RATE_LIMIT_CONFIG.roomProfileMax, "room_profile"));
+app.use("/gift_list", createEndpointLimiter(RATE_LIMIT_CONFIG.giftListMax, "gift_list"));
+app.use("/api", createEndpointLimiter(RATE_LIMIT_CONFIG.apiMax, "api"));
+
 // Cloudflare Proxy Endpoint
 app.all('/api/proxy_cf', async (req, res) => {
     const targetUrl = req.query.url || req.body.url;
@@ -54,13 +82,18 @@ app.all('/api/proxy_cf', async (req, res) => {
         return res.status(400).json({ error: 'Missing target URL' });
     }
     // R2: 取得先を許可リスト（SHOWROOM / 本人の Worker）に限定する
-    if (!parseAllowedUrl(targetUrl)) {
+    const parsedTarget = parseAllowedUrl(targetUrl);
+    if (!parsedTarget) {
         return res.status(400).json({ error: 'Target URL not allowed' });
     }
 
     try {
         const method = req.method;
         const headers = { 'Content-Type': 'application/json' };
+        // R6: 本人の Cloudflare Worker (*.workers.dev) を呼ぶ時だけ合言葉ヘッダーを付与する
+        if (isWorkerHost(parsedTarget.hostname) && process.env.CF_WORKER_KEY) {
+            headers['X-Worker-Key'] = process.env.CF_WORKER_KEY;
+        }
 
         let options = { method, headers };
 
@@ -724,7 +757,25 @@ app.get("/api/search_avatar", async (req, res) => {
 // ===============================
 // ⑥ ブラウザ WS 接続処理 (Per-Client Proxy)
 // ===============================
-wss.on("connection", (clientSocket) => {
+wss.on("connection", (clientSocket, req) => {
+    const clientIp = getClientIp(req);
+    clientSocket.clientIp = clientIp;
+
+    // R4: /ws の同時接続数上限（1 IP あたり・サーバー全体）
+    let totalClients = 0;
+    let ipClients = 0;
+    wss.clients.forEach((c) => {
+        if (c.readyState === WebSocket.OPEN || c.readyState === WebSocket.CONNECTING) {
+            totalClients++;
+            if (c.clientIp === clientIp) ipClients++;
+        }
+    });
+    if (totalClients > WS_LIMIT_CONFIG.maxTotal || ipClients > WS_LIMIT_CONFIG.maxPerIp) {
+        console.warn(`[WS] Connection limit exceeded for IP=${clientIp} (ip=${ipClients}/${WS_LIMIT_CONFIG.maxPerIp}, total=${totalClients}/${WS_LIMIT_CONFIG.maxTotal})`);
+        clientSocket.close(1013, "Too many connections");
+        return;
+    }
+
     console.log("Browser connected");
 
     // Initialize Metadata
@@ -798,10 +849,23 @@ wss.on("connection", (clientSocket) => {
                 currentKey = data.broadcast_key;
                 connectUpstream(currentKey);
             }
-            // 3. 管理者からのお知らせ送信リクエスト
+            // 3. 管理者からのお知らせ送信リクエスト（R3: ADMIN_NOTICE_KEY で検証・未設定時は拒否）
             else if (data.type === 'send_admin_notice') {
-                console.log("[Proxy] Broadcasting admin notice:", data.notice);
-                broadcastAdminNotice(data.notice);
+                const expectedKey = process.env.ADMIN_NOTICE_KEY || "";
+                if (!verifySecretKey(data.key, expectedKey)) {
+                    const reason = expectedKey ? "invalid_key" : "key_not_configured";
+                    console.warn(`[Proxy] Rejected send_admin_notice (${reason})`);
+                    if (clientSocket.readyState === WebSocket.OPEN) {
+                        clientSocket.send(JSON.stringify({ type: 'admin_notice_result', ok: false, error: reason }));
+                    }
+                    return;
+                }
+                const noticeText = typeof data.notice === "string" ? data.notice : "";
+                console.log("[Proxy] Broadcasting admin notice:", noticeText);
+                broadcastAdminNotice(noticeText);
+                if (clientSocket.readyState === WebSocket.OPEN) {
+                    clientSocket.send(JSON.stringify({ type: 'admin_notice_result', ok: true }));
+                }
             }
 
         } catch (e) {

@@ -1669,6 +1669,26 @@
                             noticeSpan.style.display = "none";
                         }
                     }
+                    else if (data.type === 'admin_notice_result') {
+                        if (window._adminNoticeTimeout) {
+                            clearTimeout(window._adminNoticeTimeout);
+                            window._adminNoticeTimeout = null;
+                        }
+                        const btn = document.getElementById("sendAdminNoticeBtn");
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.style.background = "#ff9800";
+                            btn.textContent = "送信";
+                        }
+                        if (data.ok) {
+                            alert("管理者お知らせを送信しました。");
+                        } else {
+                            const msg = data.error === "key_not_configured"
+                                ? "サーバー側に ADMIN_NOTICE_KEY が設定されていません。"
+                                : "管理者の合言葉が一致しません。";
+                            alert("お知らせ送信失敗: " + msg);
+                        }
+                    }
                 } catch (err) { }
             };
             serverSocket.onclose = () => {
@@ -1681,14 +1701,35 @@
         }
         initServerConnection();
 
-        // 管理者お知らせ送信イベント
+        // 管理者お知らせ送信イベント（R3: 合言葉付き・押下フィードバック＆タイムアウト付き）
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'sendAdminNoticeBtn') {
+                const btn = e.target;
+                if (btn.disabled) return;
                 const input = document.getElementById("adminNoticeInput");
-                const notice = input.value;
+                const keyInput = document.getElementById("adminNoticeKeyInput");
+                const notice = input ? input.value : "";
+                let key = keyInput ? keyInput.value.trim() : (localStorage.getItem("sr_admin_notice_key") || "");
+                if (!key) {
+                    const prompted = prompt("管理者の合言葉 (ADMIN_NOTICE_KEY) を入力してください:");
+                    if (prompted === null) return;
+                    key = prompted.trim();
+                    if (keyInput) keyInput.value = key;
+                }
+                if (key) localStorage.setItem("sr_admin_notice_key", key);
                 if (serverSocket && serverSocket.readyState === WebSocket.OPEN) {
-                    serverSocket.send(JSON.stringify({ type: 'send_admin_notice', notice: notice }));
-                    // input.value = ""; // クリアはあえてしない（確認のため）
+                    btn.disabled = true;
+                    btn.style.background = "#9e9e9e";
+                    btn.textContent = "…";
+                    if (window._adminNoticeTimeout) clearTimeout(window._adminNoticeTimeout);
+                    window._adminNoticeTimeout = setTimeout(() => {
+                        window._adminNoticeTimeout = null;
+                        btn.disabled = false;
+                        btn.style.background = "#ff9800";
+                        btn.textContent = "送信";
+                        alert("お知らせ送信がタイムアウトしました。");
+                    }, 5000);
+                    serverSocket.send(JSON.stringify({ type: 'send_admin_notice', notice: notice, key: key }));
                 } else {
                     alert("サーバーに接続されていません。再試行してください。");
                 }

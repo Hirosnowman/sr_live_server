@@ -1,10 +1,25 @@
+// R6: 定数時間での合言葉比較（Web標準 TextEncoder のみ使用・Cloudflare Workers 対応）
+function verifyWorkerKey(provided, expected) {
+    if (typeof expected !== "string" || expected.length === 0) return false;
+    if (typeof provided !== "string" || provided.length === 0) return false;
+    const enc = new TextEncoder();
+    const bufA = enc.encode(provided);
+    const bufB = enc.encode(expected);
+    if (bufA.byteLength !== bufB.byteLength) return false;
+    let diff = 0;
+    for (let i = 0; i < bufA.byteLength; i++) {
+        diff |= bufA[i] ^ bufB[i];
+    }
+    return diff === 0;
+}
+
 export default {
     async fetch(request, env, ctx) {
         // 1. CORS Headers
         const corsHeaders = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Headers": "Content-Type, X-Worker-Key",
         };
 
         const setCors = (res) => {
@@ -31,6 +46,12 @@ export default {
                     body = await request.json();
                 } catch (e) {
                     return setCors(new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+                }
+
+                // R6: Render (/api/proxy_cf) から付与される合言葉 (X-Worker-Key) を検証（fail-closed）
+                const providedKey = request.headers.get("X-Worker-Key") || "";
+                if (!verifyWorkerKey(providedKey, env.CF_WORKER_KEY)) {
+                    return setCors(new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
                 }
 
                 if (body.action === "save_users" && Array.isArray(body.users)) {
@@ -91,7 +112,7 @@ export default {
 
         } catch (e) {
             // Global Error Handler
-            return setCors(new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers: { "Content-Type": "application/json" } }));
+            return setCors(new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "Content-Type": "application/json" } }));
         }
     },
 };
