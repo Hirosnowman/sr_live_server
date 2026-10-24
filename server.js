@@ -5,14 +5,34 @@ import express from "express";
 import fetch from "node-fetch";
 import * as cheerio from 'cheerio';
 import path from "path";
-import { spawn, exec } from "child_process";
+import { spawn, execFile } from "child_process";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import WebSocket from "ws";
+import { RE_DIGITS, RE_URLKEY, parseAllowedUrl } from "./security.mjs";
 
 // ESM の __dirname 再現
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Python スクリプトを execFile（配列渡し）で起動する共通処理（2026-10-24 R1）。
+// シェルを一切介さないので、引数にどんな文字が来てもコマンドにはならない。
+function runPythonScript(scriptName, args, res, label) {
+    const scriptPath = path.join(__dirname, scriptName);
+    execFile('python', [scriptPath, ...args], { encoding: 'utf8' }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[${label}] Python exec error: ${error.message}`);
+            // search_avatar.py は stdout に JSON のエラーを載せる作りなので、stdout があれば続行
+            if (!stdout) return res.status(500).json({ error: "Python exec failed" });
+        }
+        try {
+            res.json(JSON.parse(stdout));
+        } catch (e) {
+            console.error(`[${label}] Python Parse Error: ${e.message}`);
+            res.status(500).json({ error: "Python output parse failed" });
+        }
+    });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +52,10 @@ app.all('/api/proxy_cf', async (req, res) => {
 
     if (!targetUrl) {
         return res.status(400).json({ error: 'Missing target URL' });
+    }
+    // R2: 取得先を許可リスト（SHOWROOM / 本人の Worker）に限定する
+    if (!parseAllowedUrl(targetUrl)) {
+        return res.status(400).json({ error: 'Target URL not allowed' });
     }
 
     try {
@@ -236,24 +260,9 @@ app.get("/gift_list", async (req, res) => {
 app.get("/api/room_event_py", async (req, res) => {
     const roomId = req.query.room_id;
     if (!roomId) return res.status(400).json({ error: "room_id required" });
+    if (!RE_DIGITS.test(roomId)) return res.status(400).json({ error: "invalid room_id" });
 
-    const { exec } = require('child_process');
-    const path = require('path');
-    const scriptPath = path.join(__dirname, 'scrape_room_event.py');
-
-    exec(`python "${scriptPath}" "${roomId}"`, { encoding: 'utf8' }, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`[Proxy] Python exec error: ${error.message}`);
-            return res.status(500).json({ error: "Python exec failed" });
-        }
-        try {
-            const result = JSON.parse(stdout);
-            res.json(result);
-        } catch (e) {
-            console.error(`[Proxy] Python Parse Error: ${e.message}`);
-            res.status(500).json({ error: "Python output parse failed" });
-        }
-    });
+    runPythonScript('scrape_room_event.py', [roomId], res, 'Proxy');
 });
 
 app.get("/api/event_points", async (req, res) => {
@@ -278,26 +287,10 @@ app.get("/api/event_points", async (req, res) => {
 app.get("/api/event_ranking_py", async (req, res) => {
     const urlKey = req.query.url_key;
     if (!urlKey) return res.status(400).json({ error: "url_key required" });
+    if (!RE_URLKEY.test(urlKey)) return res.status(400).json({ error: "invalid url_key" });
 
     console.log(`[Proxy] Executing Python scraper for: ${urlKey}`);
-    const { exec } = require('child_process');
-    const path = require('path');
-    const scriptPath = path.join(__dirname, 'scrape_ranking.py');
-
-    exec(`python "${scriptPath}" "${urlKey}"`, { encoding: 'utf8' }, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`[Proxy] Python exec error: ${error.message}`);
-            return res.status(500).json({ error: "Python exec failed" });
-        }
-        try {
-            const result = JSON.parse(stdout);
-            // Python script returns { ranking: [...] } or { error: ... }
-            res.json(result);
-        } catch (e) {
-            console.error(`[Proxy] Python Parse Error: ${e.message}`);
-            res.status(500).json({ error: "Python output parse failed" });
-        }
-    });
+    runPythonScript('scrape_ranking.py', [urlKey], res, 'Proxy');
 });
 
 app.get("/api/live_polling", async (req, res) => {
@@ -591,6 +584,10 @@ app.get("/convert_url", async (req, res) => {
 
         // CASE 2: Live Room URL (e.g. /r/accountname or just /accountname)
         // Need to fetch and extract room_id
+        // R2: 取りに行く先を許可リストに限定する（クライアントは showroom の URL しか渡さない）
+        if (!parseAllowedUrl(targetUrl)) {
+            return res.status(400).json({ error: "url not allowed" });
+        }
         const r = await fetch(targetUrl);
         const text = await r.text();
 
@@ -718,25 +715,10 @@ app.get("/api/server_status", (req, res) => {
 app.get("/api/search_avatar", async (req, res) => {
     const avatarId = req.query.avatar_id;
     if (!avatarId) return res.status(400).json({ error: "avatar_id required" });
-
-    const scriptPath = path.join(__dirname, 'search_avatar.py');
+    if (!RE_DIGITS.test(avatarId)) return res.status(400).json({ error: "invalid avatar_id" });
 
     // --json フラグを使用してJSON出力を要求
-    exec(`python "${scriptPath}" "${avatarId}" --json`, { encoding: 'utf8' }, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`[AvatarSearch] Python exec error: ${error.message} / ${stderr}`);
-            // Pythonスクリプト自体がエラーをJSONで返している可能性があるため、stdoutをチェック
-            // 致命的なエラー以外は続行を試みる
-        }
-        try {
-            // stdoutからJSONをパース
-            const result = JSON.parse(stdout);
-            res.json(result);
-        } catch (e) {
-            console.error(`[AvatarSearch] Python Parse Error: ${e.message} \nSTDOUT: ${stdout}`);
-            res.status(500).json({ error: "Python output parse failed", details: stdout });
-        }
-    });
+    runPythonScript('search_avatar.py', [avatarId, '--json'], res, 'AvatarSearch');
 });
 
 // ===============================
